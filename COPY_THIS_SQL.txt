@@ -1,0 +1,61 @@
+-- COPY EVERYTHING BELOW THIS LINE AND PASTE INTO SUPABASE SQL EDITOR
+-- ============================================================
+
+-- Step 1: Create stock_points table (required first)
+CREATE TABLE IF NOT EXISTS stock_points (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  location TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Step 2: Create raw_biomass_procurement table
+CREATE TABLE IF NOT EXISTS raw_biomass_procurement (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stock_point_id TEXT NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('own', 'vendor')),
+  vehicle_number TEXT NOT NULL,
+  vehicle_weight DECIMAL(10, 2) NOT NULL,
+  vehicle_photo TEXT,
+  gross_weight DECIMAL(10, 2) NOT NULL,
+  weight_record_photo TEXT,
+  net_weight DECIMAL(10, 2) NOT NULL,
+  procurement_date DATE NOT NULL,
+  created_by UUID,
+  location_latitude DECIMAL(10, 8),
+  location_longitude DECIMAL(11, 8),
+  geojson_data JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Step 3: Add foreign key constraint
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'raw_biomass_procurement_stock_point_id_fkey'
+  ) THEN
+    ALTER TABLE raw_biomass_procurement 
+    ADD CONSTRAINT raw_biomass_procurement_stock_point_id_fkey 
+    FOREIGN KEY (stock_point_id) REFERENCES stock_points(id);
+  END IF;
+END $$;
+
+-- Step 4: Create indexes
+CREATE INDEX IF NOT EXISTS idx_raw_biomass_stock_point ON raw_biomass_procurement(stock_point_id);
+CREATE INDEX IF NOT EXISTS idx_raw_biomass_date ON raw_biomass_procurement(procurement_date);
+
+-- Step 5: Enable Row Level Security
+ALTER TABLE raw_biomass_procurement ENABLE ROW LEVEL SECURITY;
+
+-- Step 6: Create RLS Policy
+DROP POLICY IF EXISTS "Allow all operations on raw_biomass_procurement" ON raw_biomass_procurement;
+CREATE POLICY "Allow all operations on raw_biomass_procurement" 
+ON raw_biomass_procurement 
+FOR ALL 
+USING (true) 
+WITH CHECK (true);
+
+-- Step 7: Insert sample stock point (if it doesn't exist)
+INSERT INTO stock_points (id, name, location) 
+VALUES ('sp1', 'Stock Point - Warangal', 'Warangal, Telangana')
+ON CONFLICT (id) DO NOTHING;

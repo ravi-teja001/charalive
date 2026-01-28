@@ -1,0 +1,113 @@
+/* Mobile responsive styles for Procurement Records table */
+@media (max-width: 768px) {
+  .rbp-table-wrapper table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .rbp-table-wrapper thead {
+    display: none;
+  }
+
+  .rbp-table-wrapper tbody tr {
+    display: block;
+    width: 100%;
+    margin-bottom: 1rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 1rem;
+    background: white;
+  }
+
+  .rbp-table-wrapper tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    width: 100%;
+    padding: 0.75rem 0 0.75rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+    text-align: left;
+  }
+
+  .rbp-table-wrapper tbody td:last-child {
+    border-bottom: none;
+  }
+
+  .rbp-table-wrapper tbody td:before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #374151;
+    text-align: left;
+    padding-right: 1rem;
+    flex-shrink: 0;
+    min-width: 140px;
+  }
+
+  .rbp-table-wrapper tbody td {
+    text-align: right;
+  }
+
+  /* Special handling for Photos and Location cells */
+  .rbp-table-wrapper tbody td[data-label="Photos"],
+  .rbp-table-wrapper tbody td[data-label="Location"] {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .rbp-table-wrapper tbody td[data-label="Photos"]:before,
+  .rbp-table-wrapper tbody td[data-label="Location"]:before {
+    margin-bottom: 0.5rem;
+    width: 100%;
+    display: block;
+  }
+
+  .rbp-table-wrapper tbody td[data-label="Photos"],
+  .rbp-table-wrapper tbody td[data-label="Location"] {
+    text-align: left;
+    justify-content: flex-start;
+  }
+
+  /* Make photo buttons more touch-friendly on mobile */
+  .rbp-table-wrapper tbody td[data-label="Photos"] button {
+    min-width: 48px;
+    min-height: 48px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+  }
+
+  .rbp-table-wrapper tbody td[data-label="Photos"] .flex {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  /* Ensure numeric values align right */
+  .rbp-table-wrapper tbody td[data-label="Gross Weight (kg)"],
+  .rbp-table-wrapper tbody td[data-label="Net Weight (kg)"] {
+    text-align: right;
+  }
+
+  /* Adjust padding for better spacing */
+  .rbp-table-wrapper tbody tr:first-child td {
+    padding-top: 0.5rem;
+  }
+
+  .rbp-table-wrapper tbody tr:last-child td {
+    padding-bottom: 0.5rem;
+  }
+
+  /* Form buttons alignment on mobile - Cancel and Save Procurement Data */
+  form > div:last-of-type {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.75rem !important;
+  }
+
+  @media (max-width: 640px) {
+    form > div:last-of-type > button {
+      width: 100% !important;
+    }
+  }
+}

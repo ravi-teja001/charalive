@@ -1,0 +1,35 @@
+-- Fix all profiles that have the wrong default role
+-- This script helps identify and optionally fix profiles that might have incorrect roles
+
+-- STEP 1: Check which profiles need fixing (uncomment to run)
+-- This shows profiles where role might not match user_metadata
+-- SELECT 
+--   p.id,
+--   p.email,
+--   p.role as profile_role,
+--   au.raw_user_meta_data->>'role' as metadata_role,
+--   CASE 
+--     WHEN p.role != COALESCE(au.raw_user_meta_data->>'role', '') THEN 'MISMATCH'
+--     ELSE 'OK'
+--   END as status
+-- FROM public.profiles p
+-- LEFT JOIN auth.users au ON p.id = au.id;
+
+-- STEP 2: Update roles based on auth.users metadata (if available)
+-- Uncomment and modify as needed:
+-- UPDATE public.profiles p
+-- SET role = COALESCE(
+--   (SELECT raw_user_meta_data->>'role' FROM auth.users WHERE id = p.id),
+--   p.role
+-- )
+-- WHERE EXISTS (
+--   SELECT 1 FROM auth.users au 
+--   WHERE au.id = p.id 
+--   AND au.raw_user_meta_data->>'role' IS NOT NULL
+--   AND au.raw_user_meta_data->>'role' != p.role
+-- );
+
+-- STEP 3: Manual updates for specific emails (replace with actual emails and desired roles)
+-- UPDATE public.profiles SET role = 'supervisor_plant' WHERE email = 'plantsupervisor@example.com';
+-- UPDATE public.profiles SET role = 'incharge' WHERE email = 'incharge@example.com';
+-- UPDATE public.profiles SET role = 'supervisor_stockpoint' WHERE email = 'stockpoint@example.com';

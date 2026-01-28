@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biochar Management System - User Guide</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 2cm;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            page-break-after: avoid;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 8px;
+            page-break-after: avoid;
+        }
+        h3 {
+            color: #555;
+            margin-top: 25px;
+            page-break-after: avoid;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            page-break-inside: avoid;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+            page-break-inside: avoid;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #3498db;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        ul, ol {
+            margin: 15px 0;
+            padding-left: 30px;
+        }
+        li {
+            margin: 8px 0;
+        }
+        strong {
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        p {
+            margin: 10px 0;
+        }
+        hr {
+            border: none;
+            border-top: 2px solid #ecf0f1;
+            margin: 30px 0;
+        }
+        @media print {
+            body {
+                padding: 0;
+            }
+            .no-print {
+                display: none;
+            }
+        }
+        .no-print {
+            background: #e8f4f8;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <strong>📄 How to Create PDF:</strong><br>
+        1. Press <strong>Cmd+P</strong> (Mac) or <strong>Ctrl+P</strong> (Windows)<br>
+        2. Select <strong>"Save as PDF"</strong> from the destination dropdown<br>
+        3. Click <strong>"Save"</strong>
+    </div>
+
+<h1>Biochar Management System - User Guide
+</p><p>
+<h2>📱 Table of Contents
+1. [Installation](#installation)
+2. [Getting Started](#getting-started)
+3. [Dashboard Overview](#dashboard-overview)
+4. [Add Vendor](#add-vendor)
+5. [Raw Biomass Procurement](#raw-biomass-procurement)
+6. [Log Expenses](#log-expenses)
+7. [View Procurement Records](#view-procurement-records)
+8. [Tips & Troubleshooting](#tips--troubleshooting)
+</p><p>
+<hr>
+</p><p>
+<h2>📲 Installation
+</p><p>
+<h3>Step 1: Download the APK
+</ul><ul><li>Download `Biochar-Management-System.apk` from the provided link or file
+</ul><ul><li>The APK file size is approximately 3.9 MB
+</p><p>
+<h3>Step 2: Enable Installation from Unknown Sources
+1. Open **Settings** on your Android device
+2. Go to **Security** or **Privacy** (varies by device)
+3. Enable **"Install apps from unknown sources"** or **"Allow installation from unknown sources"**
+4. You may see a warning - click **"Allow"** or **"OK"**
+</p><p>
+<h3>Step 3: Install the APK
+1. Open the downloaded APK file from your device's Downloads folder
+2. Tap **"Install"** when prompted
+3. Wait for installation to complete
+4. Tap **"Open"** or find the app icon in your app drawer
+</p><p>
+<h3>Step 4: Grant Permissions
+When you first open the app, you may be asked for permissions:
+</ul><ul><li>**Location Permission**: Required for automatic GPS capture in photos
+  - Tap **"Allow"** or **"Allow while using app"**
+  - This enables automatic capture of latitude and longitude when taking photos
+</p><p>
+<hr>
+</p><p>
+<h2>🚀 Getting Started
+</p><p>
+<h3>Step 1: Sign Up (New Users)
+</p><p>
+1. Open the app
+2. On the landing page, click **"Sign Up"** or navigate to the Sign Up page
+3. Fill in the registration form:
+   - **Full Name**: Enter your full name
+   - **Email**: Enter a valid email address
+   - **Password**: Create a strong password (minimum 8 characters)
+   - **Confirm Password**: Re-enter your password
+   - **Role**: Select your role from the dropdown:
+     - **Stock Point Supervisor** - For managing stock point operations
+     - **Incharge** - For overseeing multiple stock points
+     - **Plant Supervisor** - For plant-level management
+4. Click **"Sign Up"**
+5. You will be redirected to the Login page
+</p><p>
+<h3>Step 2: Log In
+</p><p>
+1. Enter your **Email** address
+2. Enter your **Password**
+3. Select your **Role** from the dropdown (must match your signup role)
+4. Click **"Sign In"**
+5. You will be taken to the Dashboard
+</p><p>
+<strong>Note</strong>: If you see "Access denied" error, ensure you select the correct role that matches your account registration.
+</p><p>
+<hr>
+</p><p>
+<h2>📊 Dashboard Overview
+</p><p>
+The Dashboard shows key metrics:
+</p><p>
+<h3>For Stock Point Supervisor:
+</ul><ul><li>**Total Trips Today**: Number of procurement trips recorded today
+</ul><ul><li>**Net Weight Collected**: Total net weight collected today (in tons)
+</ul><ul><li>**Pending Uploads**: Number of trips missing photos
+</p><p>
+<h3>Quick Navigation:
+</ul><ul><li>Use the **sidebar menu** (left side) to navigate between different sections
+</ul><ul><li>Click the **collapse/expand** button (☰) to minimize or expand the sidebar
+</p><p>
+<hr>
+</p><p>
+<h2>🚚 Add Vendor
+</p><p>
+<strong>Purpose</strong>: Register vendor vehicles for quick selection during procurement.
+</p><p>
+<h3>Step 1: Navigate to Add Vendor
+1. Click **"Add Vendor"** from the sidebar menu
+</p><p>
+<h3>Step 2: Fill Vehicle Details
+1. **Vehicle Number**: Enter the vehicle registration number
+2. **Vehicle Weight (kg)**: Enter the empty weight of the vehicle
+3. **Vehicle Type**: Select from dropdown (Truck, Trailer, Tempo, Auto, Other)
+4. **Name**: Enter the vendor/owner name
+5. **State**: Select state (Telangana or Andhra Pradesh)
+6. **District**: Select district (auto-populated based on state)
+7. **Village**: Select village (auto-populated based on district)
+8. Click **"Add Vehicle"**
+</p><p>
+<h3>Step 3: View Registered Vehicles
+</ul><ul><li>All vehicles you add will appear in the **"Registered Vehicles"** table below
+</ul><ul><li>You can see: Vehicle Number, Name, State, District, Village, Weight, Type, and Added Date
+</ul><ul><li>**Note**: You can only see vehicles you added yourself
+</p><p>
+<hr>
+</p><p>
+<h2>📝 Raw Biomass Procurement
+</p><p>
+<strong>Purpose</strong>: Record biomass procurement trips with photos, GPS, and weight details.
+</p><p>
+<h3>Step 1: Navigate to Raw Biomass Procurement
+1. Click **"Raw Biomass Procurement"** from the sidebar menu
+</p><p>
+<h3>Step 2: Fill Trip Details
+</p><p>
+<h4>Source of Biomass & Name
+</ul><ul><li>**Source of Biomass**: Select from dropdown:
+  - Cotton stalks
+  - Chilli stalks
+</ul><ul><li>**Name**: Enter name (vendor name or contact person)
+</p><p>
+<h4>Vehicle Information
+</ul><ul><li>**Vehicle Type**: Select **"Own"** or **"Vendor"**
+  - **If "Own"**: Enter Vehicle Number and Vehicle Weight manually
+  - **If "Vendor"**: Select from dropdown of registered vehicles (automatically fills Vehicle Number and Weight)
+</p><p>
+<h4>Location Details
+</ul><ul><li>**State**: Select state (Telangana or Andhra Pradesh)
+</ul><ul><li>**District**: Select district (auto-populated based on state)
+</ul><ul><li>**Village**: Select village (auto-populated based on district)
+</p><p>
+<h4>Vehicle Photo with Biomass
+1. Click the photo upload area or **"Upload Vehicle Image"** button
+2. Choose **"Take Photo"** or **"Choose from Gallery"**
+3. **Important**: When taking a photo, the app will automatically:
+   - Request location permission (if not already granted)
+   - Capture GPS coordinates (Latitude and Longitude)
+   - Auto-fill the Latitude and Longitude fields
+   - Lock the location fields (you can unlock if needed)
+4. After capture, you'll see:
+   - **"Photo captured"** message
+   - **"Upload Vehicle Image"** button (to change photo)
+   - **"Preview"** button (to view photo with GPS metadata)
+   - **Remove (X)** button (to delete photo)
+</p><p>
+<h3>Step 3: Fill Weight Details
+</p><p>
+<h4>Weight Information
+</ul><ul><li>**Vehicle Weight**: Automatically filled if you selected a registered vehicle
+</ul><ul><li>**Gross Weight**: Enter the gross weight (vehicle + biomass) in kg
+</ul><ul><li>**Net Weight**: Will be calculated automatically (Gross Weight - Vehicle Weight)
+</p><p>
+<h4>Weight Record Photo
+1. Click **"Upload Weight Record Photo"**
+2. Take a photo of the weight receipt or scale reading
+3. **Automatic NET WT Extraction**: 
+   - The app will try to automatically extract "NET WT" from the receipt image
+   - If found, Gross Weight and Net Weight will be calculated automatically
+   - You can manually adjust if needed
+4. After capture, preview will show GPS metadata (if available)
+</p><p>
+<h3>Step 4: Location (Auto-filled)
+</ul><ul><li>**Latitude** and **Longitude**: Automatically filled when you capture Vehicle Photo
+</ul><ul><li>**Show Map**: Click to view location on a map in a dialog
+</p><p>
+<h3>Step 5: Save Procurement Data
+1. Review all entered information
+2. Click **"Save Procurement Data"** button
+3. Wait for confirmation message: **"Procurement data saved successfully!"**
+4. The form will reset automatically
+5. Your record will appear in the **"Procurement Records"** table below
+</p><p>
+<hr>
+</p><p>
+<h2>💰 Log Expenses (For Incharge Role Only)
+</p><p>
+<strong>Purpose</strong>: Record expenses related to operations.
+</p><p>
+<h3>Step 1: Navigate to Expenses
+1. Click **"Log Expenses"** from the sidebar menu (visible only for Incharge role)
+</p><p>
+<h3>Step 2: Fill Expense Details
+1. **Stock Point**: Select stock point from dropdown
+2. **Expense Date**: Select date
+3. **Amount**: Enter expense amount
+4. **Expense Type**: Select from:
+   - Fuel
+   - Cash Advance
+   - Other
+5. **Payment Mode**: Select:
+   - Cash
+   - UPI
+6. **Receipt**: Upload receipt image (optional)
+7. Click **"Log Expense"**
+</p><p>
+<h3>Step 3: View Expense Records
+</ul><ul><li>Use filters to view expenses:
+  - **Stock Point**: Filter by specific stock point
+  - **Expense Type**: Filter by type
+  - **Date Range**: Select from date and to date
+</ul><ul><li>View totals: Total expenses count and total amount
+</p><p>
+<hr>
+</p><p>
+<h2>📋 View Procurement Records
+</p><p>
+<h3>Accessing Records
+1. Scroll down on the **"Raw Biomass Procurement"** page
+2. You'll see the **"Procurement Records"** section
+</p><p>
+<h3>Record Information
+Each record shows:
+</ul><ul><li>**Date**: Procurement date
+</ul><ul><li>**Source**: Source of biomass (Cotton stalks/Chilli stalks)
+</ul><ul><li>**Vehicle Type**: Own/Vendor
+</ul><ul><li>**Vehicle Number**: Registration number
+</ul><ul><li>**Vehicle Weight**: Weight in kg
+</ul><ul><li>**Name**: Vendor/contact name
+</ul><ul><li>**State, District, Village**: Location details
+</ul><ul><li>**Gross Weight, Net Weight**: Weight information
+</ul><ul><li>**Photos**: Click photo icons to view full-size images with GPS metadata
+</ul><ul><li>**Location**: Click location icon to view coordinates
+</p><p>
+<h3>Photo Preview
+</ul><ul><li>Click any photo in the table to view:
+  - Full-size image
+  - GPS metadata overlay showing:
+    - Latitude
+    - Longitude
+    - Date & Time
+    - Name (Note)
+</p><p>
+<h3>Export & Refresh
+</ul><ul><li>**Export Excel**: Download all records as Excel file
+</ul><ul><li>**Refresh**: Reload records from server
+</p><p>
+<h3>Pagination
+</ul><ul><li>Use **Previous** and **Next** buttons to navigate between pages
+</ul><ul><li>Page numbers show current page and total pages
+</ul><ul><li>Each page shows multiple records
+</p><p>
+<strong>Note</strong>: You can only see records you created yourself (Stock Point Supervisors see only their own records).
+</p><p>
+<hr>
+</p><p>
+<h2>💡 Tips & Troubleshooting
+</p><p>
+<h3>GPS Not Capturing on Mobile?
+1. **Check Permissions**: 
+   - Go to device Settings → Apps → Biochar Management System → Permissions
+   - Ensure **Location** permission is enabled
+2. **Enable GPS**: 
+   - Enable Location/GPS on your device
+   - For best results, enable "High Accuracy" mode
+3. **Retry**: 
+   - Close and reopen the app
+   - Try capturing the photo again
+</p><p>
+<h3>Photos Not Showing?
+</ul><ul><li>Ensure you have granted **Storage** permissions
+</ul><ul><li>Check internet connection if viewing records
+</ul><ul><li>Try refreshing the records table
+</p><p>
+<h3>Can't Log In?
+</ul><ul><li>Verify your **email** and **password** are correct
+</ul><ul><li>Ensure you select the **correct role** (must match your signup role)
+</ul><ul><li>Try resetting your password or contact support
+</p><p>
+<h3>Form Not Saving?
+</ul><ul><li>Check all required fields are filled
+</ul><ul><li>Ensure you have internet connection
+</ul><ul><li>Wait for the success message before closing the form
+</ul><ul><li>Try refreshing and submitting again
+</p><p>
+<h3>NET WT Not Extracting from Photo?
+</ul><ul><li>Ensure the receipt/scale photo is clear and well-lit
+</ul><ul><li>Make sure "NET WT" text is visible in the image
+</ul><ul><li>You can manually enter the values if automatic extraction fails
+</p><p>
+<h3>Location Fields Locked?
+</ul><ul><li>Location fields are automatically locked after GPS capture to prevent accidental changes
+</ul><ul><li>Click the **unlock icon** (if available) or refresh the page to unlock
+</p><p>
+<h3>Can't See Vendor Vehicles?
+</ul><ul><li>Ensure you're logged in with the correct account
+</ul><ul><li>You can only see vehicles you added yourself
+</ul><ul><li>Check if you've added any vehicles in the "Add Vendor" section
+</p><p>
+<h3>Export Excel Not Working?
+</ul><ul><li>Ensure you have internet connection
+</ul><ul><li>Check if there are records to export
+</ul><ul><li>Try refreshing the page and exporting again
+</p><p>
+<hr>
+</p><p>
+<h2>🔒 Security & Privacy
+</p><p>
+</ul><ul><li>All data is securely stored in the cloud
+</ul><ul><li>Each user can only access their own records
+</ul><ul><li>GPS coordinates are automatically captured but not shared publicly
+</ul><ul><li>Photos are stored securely and only visible to authorized users
+</p><p>
+<hr>
+</p><p>
+<h2>📞 Support
+</p><p>
+If you encounter any issues:
+1. Check this guide first
+2. Try the troubleshooting steps above
+3. Contact your administrator or support team
+4. Provide details: error messages, device model, Android version
+</p><p>
+<hr>
+</p><p>
+<h2>📱 System Requirements
+</p><p>
+</ul><ul><li>**Android**: 6.0 (Marshmallow) or higher
+</ul><ul><li>**Storage**: At least 50 MB free space
+</ul><ul><li>**Internet**: Required for data synchronization
+</ul><ul><li>**GPS**: Required for automatic location capture
+</ul><ul><li>**Camera**: Required for photo capture
+</p><p>
+<hr>
+</p><p>
+<h2>✅ Quick Reference Checklist
+</p><p>
+<strong>For Stock Point Supervisors:</strong>
+</ul><ul><li>[ ] Install APK and grant permissions
+</ul><ul><li>[ ] Sign up or log in
+</ul><ul><li>[ ] Add vendor vehicles (if needed)
+</ul><ul><li>[ ] Record procurement trips with photos
+</ul><ul><li>[ ] Verify GPS is captured automatically
+</ul><ul><li>[ ] Check records in Procurement Records table
+</p><p>
+<strong>For Incharge:</strong>
+</ul><ul><li>[ ] Install APK and grant permissions
+</ul><ul><li>[ ] Sign up or log in
+</ul><ul><li>[ ] View dashboard with stats
+</ul><ul><li>[ ] Log expenses as needed
+</ul><ul><li>[ ] Monitor stock point activities
+</p><p>
+<hr>
+</p><p>
+<strong>Version</strong>: 1.0  
+<strong>Last Updated</strong>: January 2025  
+<strong>All rights reserved © Sowandreap 2026</strong>
+</body></html>
