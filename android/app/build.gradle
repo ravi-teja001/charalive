@@ -22,6 +22,8 @@ android {
             storePassword 'biochar2024'
             keyAlias 'biochar'
             keyPassword 'biochar2024'
+            v1SigningEnabled true
+            v2SigningEnabled true
         }
     }
     buildTypes {
