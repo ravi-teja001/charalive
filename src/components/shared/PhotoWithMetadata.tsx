@@ -112,6 +112,7 @@ export function PhotoWithMetadata({
         
         try {
           // Using Nominatim reverse geocoding (free OpenStreetMap service)
+          // Note: This may fail due to CORS policy, so we have a fallback
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
             {
@@ -137,34 +138,19 @@ export function PhotoWithMetadata({
             const location = locationParts.length > 0 ? locationParts.join(', ') : `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
             
             // Format address like the example: "Mallareddy Gudem - Mellacheruvu Rd, Chinthala Palem, Telangana 508246, India"
-            const road = data.address?.road || data.address?.primary || '';
-            const addressParts = [road, village, state, postcode, country].filter(Boolean);
-            const address = addressParts.length > 0 ? addressParts.join(', ') : `Coordinates: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+            const addressParts = [data.address?.road, village, district, state, postcode, country].filter(Boolean);
+            const address = addressParts.length > 0 ? addressParts.join(', ') : location;
             
-            setLocationData({
-              location,
-              address,
-              country
-            });
-            
-            console.log('📍 Processed location data:', { location, address, country });
+            setLocationData({ location, address, country });
           } else {
-            console.warn('📍 Geocoding failed with status:', response.status);
-            // Set fallback data
-            setLocationData({
-              location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-              address: `GPS Coordinates: ${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
-              country: 'Unknown'
-            });
+            throw new Error('Geocoding failed');
           }
         } catch (error) {
-          console.warn('📍 Failed to fetch location data:', error);
-          // Set fallback data on error
-          setLocationData({
-            location: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
-            address: `GPS Coordinates: ${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
-            country: 'Unknown'
-          });
+          console.warn('⚠️ Geocoding failed (CORS or network error), using coordinates as fallback:', error);
+          // Fallback: Use coordinates as location
+          const location = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+          const address = `GPS Coordinates: ${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`;
+          setLocationData({ location, address, country: 'Unknown' });
         } finally {
           setLoadingLocation(false);
         }

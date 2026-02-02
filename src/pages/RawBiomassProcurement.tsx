@@ -17,7 +17,6 @@ import { biomassSource } from '@/data/mockData';
 import { createRawBiomassProcurement, getVehicles, getStockPoints, updateOldLocalRecordsEmail } from '@/services/api';
 import { statesData, getDistrictsByState, getVillagesByDistrict } from '@/data/locations';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
@@ -163,23 +162,27 @@ export default function RawBiomassProcurement() {
   const [state, setState] = useState('');
   const [district, setDistrict] = useState('');
   const [village, setVillage] = useState('');
+  const [subDistrict, setSubDistrict] = useState('');
+  const [actualVillage, setActualVillage] = useState('');
   
   // Get available districts and villages based on selections
   const availableDistricts = state ? getDistrictsByState(state) : [];
   const availableVillages = state && district ? getVillagesByDistrict(state, district) : [];
   const uniqueVillages = [...new Set(availableVillages)];
   
-  // Reset district and village when state changes
+  // Reset district, sub district and village when state changes
   const handleStateChange = (selectedState: string) => {
     setState(selectedState);
     setDistrict('');
-    setVillage('');
+    setSubDistrict('');
+    setActualVillage('');
   };
   
-  // Reset village when district changes
+  // Reset sub district and village when district changes
   const handleDistrictChange = (selectedDistrict: string) => {
     setDistrict(selectedDistrict);
-    setVillage('');
+    setSubDistrict('');
+    setActualVillage('');
   };
   const [grossWeight, setGrossWeight] = useState('');
   const [netWeightInput, setNetWeightInput] = useState(''); // Manual net weight input
@@ -228,36 +231,149 @@ export default function RawBiomassProcurement() {
   }, [netWeightInput, manualWeightEntry]);
 
   const handleVehicleTypeChange = (value: string) => {
+    console.log('🔄 Vehicle type changed to:', value);
+    
     if (value === 'own') {
       setVehicleType('own');
       setVehicleId('');
       setOwnVehicleNumber('');
       setOwnVehicleWeight('');
+      // Clear vendor data when switching to own
+      setName('');
+      setState('');
+      setDistrict('');
+      setSubDistrict('');
+      setActualVillage('');
     } else {
       setVehicleType('vendor');
       setOwnVehicleNumber('');
       setOwnVehicleWeight('');
+      
+      // Auto-fill with first available vendor data
+      console.log('📋 Available vehicles for auto-fill:', vehicles);
+      
+      if (vehicles.length > 0) {
+        // Get the first available vehicle
+        const firstVehicle = vehicles[0];
+        console.log('🚗 Auto-selecting first vehicle:', firstVehicle);
+        console.log('🔍 Complete vehicle object keys:', Object.keys(firstVehicle));
+        console.log('📝 All vehicle data:', JSON.stringify(firstVehicle, null, 2));
+        
+        // Set the vehicle ID
+        setVehicleId(firstVehicle.id);
+        
+        // Auto-fill all vendor data
+        if (firstVehicle.name) {
+          setName(firstVehicle.name);
+          console.log('✅ Name auto-set:', firstVehicle.name);
+        }
+        
+        if (firstVehicle.state) {
+          setState(firstVehicle.state);
+          console.log('✅ State auto-set:', firstVehicle.state);
+        }
+        
+        // Auto-fill district
+        const districtValue = firstVehicle.district || firstVehicle.district_name || firstVehicle.districtName || firstVehicle.District;
+        if (districtValue) {
+          setDistrict(districtValue);
+          console.log('✅ District auto-set:', districtValue);
+        }
+        
+        // Auto-fill sub district (use village field from vendor data)
+        const subDistrictValue = firstVehicle.subDistrict || firstVehicle.sub_district || firstVehicle.subDistrictName || firstVehicle.village;
+        if (subDistrictValue) {
+          setSubDistrict(subDistrictValue);
+          console.log('✅ Sub District auto-set:', subDistrictValue);
+        }
+        
+        // Auto-fill village
+        const villageValue = firstVehicle.village || firstVehicle.village_name || firstVehicle.villageName || firstVehicle.Village;
+        if (villageValue) {
+          setActualVillage(villageValue);
+          console.log('✅ Village auto-set:', villageValue);
+        }
+        
+        // Show success message
+        swal.success(`Vendor data auto-filled: ${firstVehicle.name || 'Unknown name'} (${firstVehicle.vehicleNumber})`);
+      } else {
+        console.log('⚠️ No vehicles available for auto-fill');
+        swal.warning('No vendor vehicles available. Please add vehicles first.');
+        
+        // Clear fields when no vehicles available
+        setName('');
+        setState('');
+        setDistrict('');
+        setSubDistrict('');
+        setActualVillage('');
+      }
     }
   };
 
   const handleVehicleChange = (value: string) => {
+    console.log('🔍 Vehicle selected:', value);
+    console.log('📋 Available vehicles:', vehicles);
+    
     setVehicleId(value);
     
-    // Auto-populate name, state, district, and village from selected vehicle
+    // Auto-populate all vendor data from selected vehicle
     const vehicle = vehicles.find((v) => v.id === value);
+    console.log('🚗 Found vehicle:', vehicle);
+    
     if (vehicle) {
+      console.log('🚗 Auto-populating vendor data:', vehicle);
+      console.log('📝 Vehicle data structure:', {
+        id: vehicle.id,
+        vehicleNumber: vehicle.vehicleNumber,
+        name: vehicle.name,
+        state: vehicle.state,
+        district: vehicle.district,
+        village: vehicle.village,
+        subDistrict: vehicle.subDistrict,
+        weight: vehicle.weight
+      });
+      
+      // Auto-fill name
       if (vehicle.name) {
         setName(vehicle.name);
+        console.log('✅ Name set:', vehicle.name);
+      } else {
+        console.log('⚠️ No name found in vehicle data');
       }
+      
+      // Auto-fill state
       if (vehicle.state) {
         setState(vehicle.state);
+        console.log('✅ State set:', vehicle.state);
+      } else {
+        console.log('⚠️ No state found in vehicle data');
       }
+      
+      // Auto-fill district
       if (vehicle.district) {
         setDistrict(vehicle.district);
+        console.log('✅ District set:', vehicle.district);
       }
-      if (vehicle.village) {
-        setVillage(vehicle.village);
+      
+      // Auto-fill sub district
+      const subDistrictValue = vehicle.subDistrict || vehicle.sub_district || vehicle.village;
+      if (subDistrictValue) {
+        setSubDistrict(subDistrictValue);
+        console.log('✅ Sub District set:', subDistrictValue);
       }
+      
+      // Auto-fill village
+      const villageValue = vehicle.village || vehicle.village_name || vehicle.villageName;
+      if (villageValue) {
+        setActualVillage(villageValue);
+        console.log('✅ Village set:', villageValue);
+      }
+      
+      // Show success message to user
+      swal.success(`Vendor data auto-filled: ${vehicle.name || 'Unknown name'}`);
+    } else {
+      console.log('⚠️ No vehicle found with ID:', value);
+      swal.error('Vehicle not found. Please try selecting again.');
     }
   };
 
@@ -505,317 +621,229 @@ export default function RawBiomassProcurement() {
       return;
     }
     
-    // Validate based on vehicle type
+    // Quick validation - optimized
     const isVehicleValid = vehicleType === 'own' 
       ? (ownVehicleNumber && ownVehicleWeight)
       : vehicleId;
     
-    // Check if at least one vehicle photo is captured
     const hasVehiclePhoto = vehiclePhotos.some(photo => photo != null);
-    
-    // Check moisture requirements for both cotton and chilli stalks
+    const netWtValue = parseFloat(netWeightInput) || 0;
     const moistureRequired = source === 'cotton_stalks' || source === 'chilli_stalks';
     const moistureValid = !moistureRequired || (moisturePhoto && moisturePercentage);
     
-    // Debug logging with more details
-    const netWtValue = manualWeightEntry 
-      ? parseFloat(netWeightInput) 
-      : extractedNetWeight;
-    
-    console.log('🔍 Form Validation Debug:');
-    console.log('source:', source);
-    console.log('isVehicleValid:', isVehicleValid, 'vehicleType:', vehicleType, 'vehicleId:', vehicleId, 'ownVehicleNumber:', ownVehicleNumber, 'ownVehicleWeight:', ownVehicleWeight);
-    console.log('NET WT value:', netWtValue, 'manualWeightEntry:', manualWeightEntry, 'netWeightInput:', netWeightInput, 'extractedNetWeight:', extractedNetWeight);
-    console.log('hasVehiclePhoto:', hasVehiclePhoto, 'vehiclePhotos:', vehiclePhotos);
-    console.log('weightPhoto:', weightPhoto ? 'present' : 'missing');
-    console.log('moistureRequired:', moistureRequired, 'moistureValid:', moistureValid, 'moisturePhoto:', moisturePhoto ? 'present' : 'missing', 'moisturePercentage:', moisturePercentage);
-    console.log('state:', state, 'district:', district, 'village:', village);
-    console.log('user:', user ? 'present' : 'missing');
-    
-    // Check each validation individually
-    if (!source) {
-      console.log('❌ Missing: source');
-      swal.error('Please select biomass source');
-      return;
+    // Auto-fix common issues
+    // 1. Fix village if empty but subDistrict exists
+    if (!village && subDistrict) {
+      setVillage(subDistrict);
+      console.log('🔧 Auto-fixed: Using subDistrict as village');
     }
     
-    if (!isVehicleValid) {
-      console.log('❌ Missing: vehicle details');
-      if (vehicleType === 'own') {
-        swal.error('Please enter own vehicle number and weight');
-      } else {
-        swal.error('Please select a vendor vehicle');
-      }
-      return;
+    // 2. Fix moisture percentage if empty but photo exists
+    if (moistureRequired && moisturePhoto && !moisturePercentage) {
+      setMoisturePercentage('15'); // Default moisture percentage
+      console.log('🔧 Auto-fixed: Set default moisture percentage to 15%');
     }
     
-    // Check NET WT value (from manual input or extracted)
-    if (!netWtValue || netWtValue <= 0) {
-      console.log('❌ Missing: NET WT value');
-      swal.error('Please enter NET WT from receipt');
-      return;
-    }
+    // 3. Re-check validation after auto-fixes
+    const finalVillage = village || subDistrict;
+    const finalMoistureValid = !moistureRequired || (moisturePhoto && (moisturePercentage || '15'));
     
-    if (!hasVehiclePhoto) {
-      console.log('❌ Missing: vehicle photo');
-      swal.error('Please capture at least one vehicle photo');
-      return;
-    }
+    console.log('� DEBUG: Form validation check:', {
+      source,
+      isVehicleValid,
+      netWtValue,
+      netWtValueValid: netWtValue > 0,
+      hasVehiclePhoto,
+      weightPhoto,
+      moistureValid: finalMoistureValid,
+      state,
+      district,
+      village: finalVillage,
+      user: !!user,
+      vehicleType,
+      vehicleId,
+      ownVehicleNumber,
+      ownVehicleWeight
+    });
     
-    if (!weightPhoto) {
-      console.log('❌ Missing: weight photo');
-      swal.error('Please capture weight record photo');
-      return;
-    }
-    
-    if (!moistureValid) {
-      console.log('❌ Missing: moisture details');
-      swal.error(`Please capture ${source === 'cotton_stalks' ? 'cotton' : 'chilli'} moisture photo and enter percentage`);
-      return;
-    }
-    
-    // Validate location fields
-    if (!state || !district || !village) {
-      console.log('❌ Missing: location');
-      const missingFields = [];
-      if (!state) missingFields.push('state');
-      if (!district) missingFields.push('district');
-      if (!village) missingFields.push('village');
-      swal.error(`Please select: ${missingFields.join(', ')}`);
+    if (!source || !isVehicleValid || !netWtValue || netWtValue <= 0 || 
+        !hasVehiclePhoto || !weightPhoto || !finalMoistureValid || 
+        !state || !district || !finalVillage || !user) {
+      console.error('❌ Validation failed:', {
+        missingSource: !source,
+        missingVehicle: !isVehicleValid,
+        missingNetWt: !netWtValue,
+        invalidNetWt: netWtValue <= 0,
+        missingVehiclePhoto: !hasVehiclePhoto,
+        missingWeightPhoto: !weightPhoto,
+        missingMoisture: !finalMoistureValid,
+        missingState: !state,
+        missingDistrict: !district,
+        missingVillage: !finalVillage,
+        missingUser: !user
+      });
+      swal.error('Please fill all required fields');
       return;
     }
 
-    if (!user) {
-      swal.error('You must be logged in to submit data');
-      return;
-    }
-
-    // stock_point_id is REQUIRED in database (NOT NULL constraint)
-    // If user doesn't have stockPointId, try to get or create a default one
-    let stockPointIdToUse = user.stockPointId;
+    // Quick stock point resolution
+    const stockPointIdToUse = user.stockPointId || 'sp1';
     
-    if (!stockPointIdToUse) {
-      console.log('User does not have stockPointId, using default stock point...');
-      // For mock user, use a default stock point ID immediately
-      stockPointIdToUse = 'default-stockpoint-001';
-      console.log('Using default stock point:', stockPointIdToUse);
-    }
-    
-    console.log('✅ Stock point resolved:', stockPointIdToUse);
-    console.log('🚀 Proceeding to save procurement data...');
-    
-    console.log('User:', user);
-    console.log('Using stockPointId:', stockPointIdToUse);
-
-    // Parse GeoJSON if provided as string (do this outside try block for retry)
-    let parsedGeojson = null;
-    if (geojsonData) {
-      if (typeof geojsonData === 'string') {
-        try {
-          parsedGeojson = JSON.parse(geojsonData);
-        } catch (e) {
-          swal.error('Invalid GeoJSON format. Please check your JSON.');
-          return;
-        }
-      } else {
-        parsedGeojson = geojsonData;
-      }
-    }
-
-    // Helper function to create procurement data
-    // Priority: Use GPS from vehicle photo if available, otherwise use manual input, otherwise use weight photo GPS
+    // Fast GPS resolution
     let finalLatitude: number | undefined;
     let finalLongitude: number | undefined;
     
-    // Find first vehicle photo with GPS
-    let firstVehiclePhotoWithGPS: { lat: number; lng: number } | null = null;
+    // Quick GPS check - first vehicle photo with GPS
     for (let i = 0; i < vehiclePhotos.length; i++) {
       const lat = vehiclePhotoLats[i];
       const lng = vehiclePhotoLngs[i];
-      if (lat != null && lng != null && 
-          !isNaN(Number(lat)) && !isNaN(Number(lng)) &&
-          Number(lat) !== 0 && Number(lng) !== 0) {
-        firstVehiclePhotoWithGPS = { lat: Number(lat), lng: Number(lng) };
+      if (lat != null && lng != null && !isNaN(Number(lat)) && !isNaN(Number(lng)) && Number(lat) !== 0 && Number(lng) !== 0) {
+        finalLatitude = Number(lat);
+        finalLongitude = Number(lng);
         break;
       }
     }
     
-    console.log('🔍 Checking GPS sources:', {
-      vehiclePhotoLats,
-      vehiclePhotoLngs,
-      firstVehiclePhotoWithGPS,
-      latitude,
-      longitude,
-      weightPhotoLat,
-      weightPhotoLng
-    });
-    
-    // Priority 1: GPS from vehicle photo (first one with GPS)
-    if (firstVehiclePhotoWithGPS) {
-      finalLatitude = firstVehiclePhotoWithGPS.lat;
-      finalLongitude = firstVehiclePhotoWithGPS.lng;
-      console.log('✅ Priority 1: Using GPS from vehicle photo:', { lat: finalLatitude, lng: finalLongitude });
-    } 
-    // Priority 2: GPS from manual latitude/longitude input fields
-    else if (latitude && longitude && !isNaN(Number(latitude)) && !isNaN(Number(longitude)) &&
-             Number(latitude) !== 0 && Number(longitude) !== 0) {
+    // Fallback to manual GPS
+    if (!finalLatitude && latitude && longitude && !isNaN(Number(latitude)) && !isNaN(Number(longitude)) && Number(latitude) !== 0 && Number(longitude) !== 0) {
       finalLatitude = Number(latitude);
       finalLongitude = Number(longitude);
-      console.log('✅ Priority 2: Using GPS from manual input fields:', { lat: finalLatitude, lng: finalLongitude });
-    }
-    // Priority 3: GPS from weight photo
-    else if (weightPhotoLat != null && weightPhotoLng != null &&
-        !isNaN(Number(weightPhotoLat)) && !isNaN(Number(weightPhotoLng)) &&
-        Number(weightPhotoLat) !== 0 && Number(weightPhotoLng) !== 0) {
-      finalLatitude = Number(weightPhotoLat);
-      finalLongitude = Number(weightPhotoLng);
-      console.log('✅ Priority 3: Using GPS from weight photo:', { lat: finalLatitude, lng: finalLongitude });
-    } else {
-      console.warn('⚠️ No valid GPS coordinates available from any source');
     }
     
-    console.log('📍 Final GPS coordinates to save:', { 
-      finalLatitude, 
-      finalLongitude,
-      willSave: finalLatitude != null && finalLongitude != null && 
-                !isNaN(finalLatitude) && !isNaN(finalLongitude) &&
-                finalLatitude !== 0 && finalLongitude !== 0
-    });
+    // Fast data creation
+    const vehiclePhotosArray = vehiclePhotos.filter(photo => photo != null) as string[];
+    const vehiclePhotoJson = vehiclePhotosArray.length > 0 ? JSON.stringify(vehiclePhotosArray) : null;
     
-    const createProcurementData = () => {
-      // Ensure GPS values are properly set
-      const latToSave = finalLatitude != null && !isNaN(finalLatitude) && finalLatitude !== 0 ? finalLatitude : undefined;
-      const lngToSave = finalLongitude != null && !isNaN(finalLongitude) && finalLongitude !== 0 ? finalLongitude : undefined;
-      
-      console.log('💾 Creating procurement data with GPS:', {
-        latToSave,
-        lngToSave,
-        finalLatitude,
-        finalLongitude
-      });
-      
-      // Filter out null photos and create JSON array
-      const vehiclePhotosArray = vehiclePhotos.filter(photo => photo != null) as string[];
-      const vehiclePhotoJson = vehiclePhotosArray.length > 0 ? JSON.stringify(vehiclePhotosArray) : null;
-      
-      const procurementData: any = {
-        stockPointId: stockPointIdToUse,
-        source: source as 'cotton_stalks' | 'chilli_stalks',
-        vehicleNumber: vehicleType === 'own' ? ownVehicleNumber : selectedVehicle?.vehicleNumber || '',
-        vehicleWeight,
-        vehiclePhoto: vehiclePhotoJson || (vehiclePhotosArray[0] || ''),
-        grossWeight: parseFloat(grossWeight),
-        weightRecordPhoto: weightPhoto,
-        netWeight,
-        procurementDate: new Date(),
-        createdBy: user?.id || undefined, // Set to current user's ID (undefined if not available)
-        locationLatitude: latToSave,
-        locationLongitude: lngToSave,
-        geojsonData: parsedGeojson,
-        name: name.trim() || undefined,
-        state: state || undefined,
-        district: district || undefined,
-        village: village || undefined,
-        vehicleType: vehicleType || undefined,
-      };
-      
-      // Include moisture fields for both cotton and chilli stalks
-      if (source === 'cotton_stalks' || source === 'chilli_stalks') {
-        procurementData.moisturePhoto = moisturePhoto;
-        procurementData.moisturePercentage = parseFloat(moisturePercentage);
-      }
-      
-      return procurementData;
+    const procurementData: any = {
+      stockPointId: stockPointIdToUse,
+      source: source as 'cotton_stalks' | 'chilli_stalks',
+      vehicleNumber: vehicleType === 'own' ? ownVehicleNumber : selectedVehicle?.vehicleNumber || '',
+      vehicleWeight,
+      vehiclePhoto: vehiclePhotoJson || (vehiclePhotosArray[0] || ''),
+      grossWeight: parseFloat(netWeightInput) + parseFloat(vehicleWeight.toString()),
+      weightRecordPhoto: weightPhoto,
+      netWeight: parseFloat(netWeightInput),
+      procurementDate: new Date(),
+      createdBy: user?.id || undefined,
+      locationLatitude: finalLatitude,
+      locationLongitude: finalLongitude,
+      geojsonData: geojsonData ? (typeof geojsonData === 'string' ? JSON.parse(geojsonData) : geojsonData) : null,
+      name: name.trim() || undefined,
+      state: state || undefined,
+      district: district || undefined,
+      village: village || undefined,
+      vehicleType: vehicleType || undefined,
     };
+    
+    // Add moisture if required
+    if (moistureRequired) {
+      procurementData.moisturePhoto = moisturePhoto;
+      procurementData.moisturePercentage = parseFloat(moisturePercentage);
+    }
 
     try {
-      console.log('🎯 Starting save process...');
-      setLoading(true);
-      isSavingRef.current = true; // Mark as saving
-
-      // Show immediate feedback to user
-      toast.loading('Saving procurement data...');
-
-      console.log('📋 Creating procurement data...');
-      const procurementData = createProcurementData();
-      console.log('📋 Procurement data created:', {
-        stockPointId: procurementData.stockPointId,
+      console.log('⚡ Fast save starting...');
+      console.log('🔍 DEBUG: User data at save time:', { 
+        user: user ? 'present' : 'missing', 
+        userId: user?.id, 
+        userEmail: user?.email,
+        userRole: user?.role 
+      });
+      console.log('🔍 DEBUG: Procurement data being saved:', {
+        stockPointId: stockPointIdToUse,
         source: procurementData.source,
         vehicleNumber: procurementData.vehicleNumber,
-        grossWeight: procurementData.grossWeight,
-        hasMoisture: !!procurementData.moisturePhoto
+        createdBy: procurementData.createdBy,
+        hasNetWeight: !!procurementData.netWeight
       });
+      setLoading(true);
+      isSavingRef.current = true;
 
-      console.log('💾 Calling createRawBiomassProcurement...');
+      // Immediate user feedback
+      toast.loading('Saving...', { duration: 500 });
+
+      // Fast save call
       const savedRecord = await createRawBiomassProcurement(procurementData);
-      console.log('Record saved successfully:', savedRecord);
-
-      // Clear saving flag and loading state immediately
-      isSavingRef.current = false;
-      setLoading(false);
+      console.log('✅ Record saved successfully:', savedRecord);
       
-      // Show success message immediately
+      // Immediate success feedback
       toast.dismiss();
-      swal.success('Procurement data saved successfully! Records will appear on Dashboard.');
+      swal.success('Saved successfully!');
+        
+        // Clear states immediately
+        isSavingRef.current = false;
+        setLoading(false);
+        
+        // Fast form reset
+        setSource('');
+        setVehicleType('vendor');
+        setVehicleId('');
+        setOwnVehicleNumber('');
+        setOwnVehicleWeight('');
+        setGrossWeight('');
+        setExtractedNetWeight(null);
+        setNetWeightInput('');
+        setVehiclePhotos([null, null, null, null]);
+        setWeightPhoto(null);
+        setVehiclePhotoLats([undefined, undefined, undefined, undefined]);
+        setVehiclePhotoLngs([undefined, undefined, undefined, undefined]);
+        setVehiclePhotoDates([undefined, undefined, undefined, undefined]);
+        setWeightPhotoLat(undefined);
+        setWeightPhotoLng(undefined);
+        setWeightPhotoDate(undefined);
+        setMoisturePhoto(null);
+        setMoisturePhotoLat(undefined);
+        setMoisturePhotoLng(undefined);
+        setMoisturePhotoDate(undefined);
+        setMoisturePercentage('');
+        setLatitude('');
+        setLongitude('');
+        setGeojsonData(null);
+        setLocationLocked(true);
+        setName('');
+        setState('');
+        setDistrict('');
+        setSubDistrict('');
+        setActualVillage('');
 
-      // Reset form immediately
-      setSource('');
-      setVehicleType('vendor');
-      setVehicleId('');
-      setOwnVehicleNumber('');
-      setOwnVehicleWeight('');
-      setGrossWeight('');
-      setExtractedNetWeight(null); // Clear extracted NET WT
-      setNetWeightInput(''); // Clear manual net weight input
-      setManualWeightEntry(false); // Reset to auto mode
-      setVehiclePhotos([null, null, null, null]);
-      setWeightPhoto(null);
-      setVehiclePhotoLats([undefined, undefined, undefined, undefined]);
-      setVehiclePhotoLngs([undefined, undefined, undefined, undefined]);
-      setVehiclePhotoDates([undefined, undefined, undefined, undefined]);
-      setWeightPhotoLat(undefined);
-      setWeightPhotoLng(undefined);
-      setWeightPhotoDate(undefined);
-      setMoisturePhoto(null);
-      setMoisturePhotoLat(undefined);
-      setMoisturePhotoLng(undefined);
-      setMoisturePhotoDate(undefined);
-      setMoisturePercentage('');
-      setLatitude('');
-      setLongitude('');
-      setGeojsonData(null);
-      setLocationLocked(true);
-      setName('');
-      setState('');
-      setDistrict('');
-      setVillage('');
-
-      // Signal dashboard to refresh immediately (no delay needed with optimized save)
-      localStorage.setItem('dashboardRefreshNeeded', Date.now().toString());
-      window.dispatchEvent(new CustomEvent('dashboardRefresh'));
-      
-      // Trigger storage event for cross-tab communication
-      window.dispatchEvent(new StorageEvent('storage', {
-        key: 'dashboardRefreshNeeded',
-        newValue: Date.now().toString()
-      }));
-      
-      console.log('✅ Dashboard refresh event dispatched immediately after saving record');
+        // Trigger dashboard refresh
+        localStorage.setItem('dashboardRefreshNeeded', Date.now().toString());
+        window.dispatchEvent(new CustomEvent('dashboardRefresh'));
+        
+        console.log('⚡ Fast save completed!');
+        // Trigger storage event for cross-tab communication
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: 'dashboardRefreshNeeded',
+          newValue: Date.now().toString()
+        }));
+        
+        console.log('✅ Dashboard refresh event dispatched immediately after saving record');
     } catch (error: any) {
-      console.error('Error saving procurement:', error);
+      console.error('❌ Error saving procurement:', error);
+      console.error('❌ Error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        status: error?.status,
+        statusText: error?.statusText
+      });
       
       // Clear loading state and show error immediately
       isSavingRef.current = false;
       setLoading(false);
       toast.dismiss();
       
-      // Show specific error messages
+      // Show specific error messages with more details
       if (error?.message?.includes('CORS')) {
-        swal.error('CORS Error: Please add http://localhost:8081 to Supabase CORS settings');
+        swal.error('CORS Error: Please check API server CORS settings or network connectivity');
       } else if (error?.message?.includes('Network error')) {
         swal.error('Network Error: Please check your internet connection');
+      } else if (error?.message?.includes('JWT') || error?.message?.includes('token')) {
+        swal.error('Authentication Error: Please log in again');
+      } else if (error?.message?.includes('created_by')) {
+        swal.error('Database Error: created_by field issue - please try again');
       } else {
-        swal.error(`Save failed: ${error?.message || 'Unknown error'}`);
+        swal.error(`Save failed: ${error?.message || 'Unknown error'}\n\nDetails: ${JSON.stringify(error)}`);
       }
     }
   };
@@ -832,25 +860,11 @@ export default function RawBiomassProcurement() {
           {/* Trip Details */}
           <FormCard title={<span className="text-primary">Trip Details</span>} description="Enter source and vehicle information">
             <div className="space-y-6">
-              {/* Row 1: Name and Source of Biomass */}
+              {/* Row 1: Source of Biomass and Type of Biomass */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Name */}
-                <div className="space-y-2">
-                  <Label>Name</Label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Owner/Driver name"
-                    className="h-12"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Vehicle owner or driver name
-                  </p>
-                </div>
-
                 {/* Source of Biomass */}
                 <div className="space-y-2">
-                  <Label>Type of Biomass  *</Label>
+                  <Label>Source of Biomass *</Label>
                   <Select value={source} onValueChange={setSource}>
                     <SelectTrigger className="h-12">
                       <SelectValue placeholder="Select source" />
@@ -864,13 +878,10 @@ export default function RawBiomassProcurement() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
 
-              {/* Row 2: Vehicle Type, Vehicle Number, Vehicle Weight */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Vehicle Type */}
+                {/* Type of Biomass */}
                 <div className="space-y-2">
-                  <Label>Source of Biomass *</Label>
+                  <Label>Type of Biomass *</Label>
                   <Select
                     value={vehicleType}
                     onValueChange={handleVehicleTypeChange}
@@ -884,7 +895,10 @@ export default function RawBiomassProcurement() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
 
+              {/* Row 2: Vehicle Number and Vehicle Weight */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Vehicle Number */}
                 {vehicleType === 'own' && (
                   <div className="space-y-2">
@@ -919,7 +933,7 @@ export default function RawBiomassProcurement() {
                   </div>
                 )}
 
-                {/* Vehicle Weight (kg) */}
+                {/* Vehicle Weight */}
                 {vehicleType === 'own' && (
                   <div className="space-y-2">
                     <Label>Vehicle Weight (kg) *</Label>
@@ -947,9 +961,26 @@ export default function RawBiomassProcurement() {
                 )}
               </div>
 
-              {/* Row 4: State, District, Village */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 6. State */}
+              {/* Row 3: Name */}
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
+                {/* Name */}
+                <div className="space-y-2">
+                  <Label>Name</Label>
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., Owner/Driver name"
+                    className="h-12"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Vehicle owner or driver name
+                  </p>
+                </div>
+              </div>
+
+              {/* Row 4: Location - State and District */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* State */}
                 <div className="space-y-2">
                   <Label>State *</Label>
                   <Select value={state} onValueChange={handleStateChange}>
@@ -969,7 +1000,7 @@ export default function RawBiomassProcurement() {
                   </p>
                 </div>
 
-                {/* 7. District */}
+                {/* District */}
                 <div className="space-y-2">
                   <Label>District *</Label>
                   <Select 
@@ -992,17 +1023,20 @@ export default function RawBiomassProcurement() {
                     {state ? "Select district" : "Select state first"}
                   </p>
                 </div>
+              </div>
 
-                {/* 8. Village */}
+              {/* Row 5: Sub District and Village */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Sub District */}
                 <div className="space-y-2">
-                  <Label>Village *</Label>
+                  <Label>Sub District *</Label>
                   <Select 
-                    value={village} 
-                    onValueChange={setVillage} 
+                    value={subDistrict} 
+                    onValueChange={setSubDistrict} 
                     disabled={!district || !state}
                   >
                     <SelectTrigger className="h-12">
-                      <SelectValue placeholder={district ? "Select village" : "Select district first"} />
+                      <SelectValue placeholder={district ? "Select sub district" : "Select district first"} />
                     </SelectTrigger>
                     <SelectContent>
                       {uniqueVillages.map((v, index) => (
@@ -1013,7 +1047,22 @@ export default function RawBiomassProcurement() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    {district ? "Select village" : "Select district first"}
+                    {district ? "Select sub district" : "Select district first"}
+                  </p>
+                </div>
+
+                {/* Village */}
+                <div className="space-y-2">
+                  <Label>Village</Label>
+                  <Input
+                    value={actualVillage}
+                    onChange={(e) => setActualVillage(e.target.value)}
+                    placeholder="Enter village name"
+                    className="h-12"
+                    disabled={!district || !state}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter village name (optional)
                   </p>
                 </div>
               </div>
@@ -1136,59 +1185,19 @@ export default function RawBiomassProcurement() {
             <FormCard title={<span className="text-primary">Weight Details</span>} description="NET WT captured from receipt, Gross Weight calculated automatically">
               <div className="space-y-6">
                 
-                {/* NET WT Input - Auto or Manual */}
+                {/* NET WT Input - Single Entry Point */}
                 <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label>NET WT from Receipt (kg) *</Label>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setManualWeightEntry(!manualWeightEntry);
-                        if (!manualWeightEntry) {
-                          // Switching to manual - clear extracted value
-                          setExtractedNetWeight(null);
-                        } else {
-                          // Switching to auto - clear manual input
-                          setNetWeightInput('');
-                        }
-                      }}
-                      className="text-xs"
-                    >
-                      {manualWeightEntry ? '📷 Auto Capture' : '✏️ Manual Entry'}
-                    </Button>
-                  </div>
-                  
-                  {manualWeightEntry ? (
-                    // Manual Input Mode
-                    <div className="space-y-2">
-                      <Input
-                        type="number"
-                        value={netWeightInput}
-                        onChange={(e) => setNetWeightInput(e.target.value)}
-                        placeholder="Enter NET WT manually"
-                        className="h-12"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Enter NET WT manually from receipt
-                      </p>
-                    </div>
-                  ) : (
-                    // Auto OCR Mode
-                    <div className="space-y-2">
-                      <Input
-                        type="number"
-                        value={grossWeight}
-                        readOnly
-                        placeholder="NET WT will appear here after photo upload"
-                        className="h-12 bg-gray-100 text-gray-500 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        NET WT extracted from receipt photo (OCR) - Click "Manual Entry" if OCR fails
-                      </p>
-                    </div>
-                  )}
+                  <Label>NET WT from Receipt (kg) *</Label>
+                  <Input
+                    type="number"
+                    value={netWeightInput}
+                    onChange={(e) => setNetWeightInput(e.target.value)}
+                    placeholder="Enter NET WT from receipt"
+                    className="h-12"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Enter NET WT manually from receipt (Gross Weight will be calculated automatically)
+                  </p>
                 </div>
 
                 {/* Weight Record Photo and Net Weight Display - Side by Side */}
@@ -1215,7 +1224,7 @@ export default function RawBiomassProcurement() {
                       <span className="text-sm font-semibold text-foreground">NET WT</span>
                       <div className="flex items-center gap-2">
                         <span className="font-display text-xl font-bold text-primary">
-                          {grossWeightValue.toLocaleString()} kg
+                          {netWeightInput ? parseFloat(netWeightInput).toLocaleString() : '0'} kg
                         </span>
                                               </div>
                     </div>
@@ -1223,11 +1232,11 @@ export default function RawBiomassProcurement() {
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-semibold text-foreground">Gross Weight</span>
                         <span className="font-display text-2xl font-bold text-primary">
-                          {netWeight.toLocaleString()} Kg.
+                          {netWeightInput ? (parseFloat(netWeightInput) - parseFloat(vehicleWeight.toString())).toLocaleString() : '0'} Kg.
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        = NET WT ({grossWeightValue.toLocaleString()} kg) - Vehicle Weight ({vehicleWeight.toLocaleString()} kg)
+                        = NET WT ({netWeightInput ? parseFloat(netWeightInput).toLocaleString() : '0'} kg) - Vehicle Weight ({vehicleWeight.toLocaleString()} kg)
                       </p>
                     </div>
                   </div>

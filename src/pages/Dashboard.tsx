@@ -53,6 +53,8 @@ export default function Dashboard() {
   const [records, setRecords] = useState<any[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const recordsPerPage = 20; // Reduced for better performance
   const [rowsPerPage, setRowsPerPage] = useState(5);
   const [previewImage, setPreviewImage] = useState<{
     src: string;
@@ -126,15 +128,20 @@ export default function Dashboard() {
         });
       }
       
-      // Process records to parse vehiclePhoto JSON into array
+      // Process records to parse vehiclePhoto JSON into array - optimized
       const processedRecords = data.map((record: any) => {
         let vehiclePhotos = [];
         try {
-          // Parse vehiclePhoto JSON string if it exists
+          // Optimized vehiclePhoto parsing
           if (record.vehiclePhoto) {
             if (typeof record.vehiclePhoto === 'string') {
-              // Try to parse as JSON array
-              vehiclePhotos = JSON.parse(record.vehiclePhoto);
+              // Quick check if it's JSON array format
+              if (record.vehiclePhoto.startsWith('[')) {
+                vehiclePhotos = JSON.parse(record.vehiclePhoto);
+              } else {
+                // Single photo string
+                vehiclePhotos = [record.vehiclePhoto];
+              }
             } else if (Array.isArray(record.vehiclePhoto)) {
               // Already an array
               vehiclePhotos = record.vehiclePhoto;
@@ -144,8 +151,7 @@ export default function Dashboard() {
             }
           }
         } catch (error) {
-          console.warn('Error parsing vehiclePhoto JSON:', error, 'for record:', record.id);
-          // Fallback: treat as single photo if not empty
+          // Silent error handling for performance
           vehiclePhotos = record.vehiclePhoto ? [record.vehiclePhoto] : [];
         }
         
@@ -472,19 +478,19 @@ export default function Dashboard() {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <StatCard
         title="Total Trips Today"
-        value={stats.totalTripsToday.toString()}
+        value={stats.totalTripsToday?.toString() || '0'}
         subtitle="Raw biomass collected"
         icon={<Truck size={24} />}
       />
       <StatCard
         title="Net Weight Collected"
-        value={`${(stats.netWeightToday / 1000).toFixed(1)} T`}
+        value={`${((stats.netWeightToday || 0) / 1000).toFixed(1)} T`}
         subtitle="Today"
         icon={<Weight size={24} />}
       />
       <StatCard
         title="Pending Uploads"
-        value={stats.pendingUploads.toString()}
+        value={stats.pendingUploads?.toString() || '0'}
         subtitle="Photos to sync"
         icon={<Leaf size={24} />}
       />
@@ -588,6 +594,9 @@ export default function Dashboard() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Vehicle {trip.vehicleNumber} • Net weight: {(trip.netWeight / 1000).toFixed(2)} T
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {trip.state && `State: ${trip.state}`}{trip.state && trip.district && ` • `}{trip.district && `District: ${trip.district}`}{trip.district && trip.village && ` • `}{trip.village && `Village: ${trip.village}`}
                   </p>
                 </div>
                 <p className="text-xs text-muted-foreground">

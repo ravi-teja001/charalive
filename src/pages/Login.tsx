@@ -28,7 +28,6 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -43,6 +42,9 @@ export default function Login() {
   const [showResetPasswordNew, setShowResetPasswordNew] = useState(false);
   const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [showRolePicker, setShowRolePicker] = useState(false);
+  const [availableRoles, setAvailableRoles] = useState<string[]>([]);
+  const [selectedRole, setSelectedRole] = useState<string>('');
 
   const { login, resetPassword, isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -144,23 +146,24 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Use default role if none selected
-    const roleToUse = selectedRole || 'supervisor_stockpoint';
-    
+    // Role comes from database (saved at signup) - API returns it
     console.log('=== LOGIN FORM SUBMITTED ===');
     console.log('Email:', email);
-    console.log('Selected Role:', roleToUse);
     console.log('Calling login function...');
 
     setIsLoading(true);
     setError('');
 
     try {
-      const success = await login(email, password, roleToUse as UserRole);
-      console.log('Login function returned:', success);
-      if (success) {
+      const result = await login(email, password);
+      console.log('Login function returned:', result);
+      if (result === true) {
         console.log('Login successful, navigating to dashboard...');
         navigate('/dashboard');
+      } else if (result && typeof result === 'object' && result.needsRoleSelection) {
+        setShowRolePicker(true);
+        setAvailableRoles(result.roles);
+        setSelectedRole(result.roles[0] || '');
       } else {
         setError('Login failed. Please try again.');
       }
@@ -428,27 +431,6 @@ export default function Login() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Role Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="role" className="text-sm font-medium">Select Your Role</Label>
-                <Select 
-                  value={selectedRole || 'supervisor_stockpoint'} 
-                  onValueChange={(value) => setSelectedRole(value as UserRole)}
-                >
-                  <SelectTrigger 
-                    id="role"
-                    className="h-12 bg-background border-border/50 focus:border-primary focus:ring-1 focus:ring-primary"
-                  >
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="supervisor_stockpoint">Stock Point Supervisor</SelectItem>
-                    <SelectItem value="incharge">Incharge</SelectItem>
-                    <SelectItem value="supervisor_plant">Plant Supervisor</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium">Email</Label>
                 <div className="relative">
@@ -534,6 +516,56 @@ export default function Login() {
           </div>
         </div>
       </div>
+
+      {/* Role Picker Dialog - when user has multiple roles */}
+      <Dialog open={showRolePicker} onOpenChange={setShowRolePicker}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Role</DialogTitle>
+            <DialogDescription>
+              You have access to multiple roles. Choose which one to use for this session.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Role</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger className="h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRoles.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r === 'supervisor_stockpoint' ? 'Stock Point Supervisor' : r === 'incharge' ? 'Incharge' : r === 'supervisor_plant' ? 'Plant Supervisor' : r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              className="w-full h-12"
+              onClick={async () => {
+                setIsLoading(true);
+                setError('');
+                try {
+                  const success = await login(email, password, selectedRole as UserRole);
+                  if (success) {
+                    setShowRolePicker(false);
+                    navigate('/dashboard');
+                  }
+                } catch (err: any) {
+                  setError(err.message || 'Login failed');
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Signing in...' : 'Continue'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Forgot Password Dialog - Just ask for email */}
       <Dialog open={showForgotPassword} onOpenChange={(open) => {

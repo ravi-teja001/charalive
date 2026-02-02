@@ -294,8 +294,9 @@ export default function AddVendor() {
   const handleEditClick = (vehicle: any) => {
     setEditingVehicle(vehicle);
     setEditVehicleNumber(vehicle.vehicleNumber || '');
-    setEditWeight(vehicle.weight?.toString() || '');
-    setEditVehicleType(vehicle.type || 'Truck');
+    const typeFromApi = (vehicle.type || 'truck').toString().toLowerCase();
+    const displayType = typeFromApi.charAt(0).toUpperCase() + typeFromApi.slice(1);
+    setEditVehicleType(['Truck', 'Trailer', 'Tempo', 'Auto', 'Tractor', 'Registered', 'Other'].includes(displayType) ? displayType : 'Other');
     setEditName(vehicle.name || '');
     setEditState(vehicle.state || '');
     setEditDistrict(vehicle.district || '');
@@ -749,11 +750,44 @@ export default function AddVendor() {
                     <SelectItem value="Trailer">Trailer</SelectItem>
                     <SelectItem value="Tempo">Tempo</SelectItem>
                     <SelectItem value="Auto">Auto</SelectItem>
+                    <SelectItem value="Tractor">Tractor</SelectItem>
+                    <SelectItem value="Registered">Registered</SelectItem>
                     <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
+              <div className="space-y-2">
+                  <Label htmlFor="dialog-weight">Vehicle Weight (kg) <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="dialog-weight"
+                    type="number"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                    placeholder="e.g., 2500"
+                    className="h-11"
+                    min="0"
+                    step="0.01"
+                    disabled={loading}
+                    required
+                  />
+              </div>
+
+              <div className="space-y-2">
+                  <Label htmlFor="dialog-name">Name</Label>
+                  <Input
+                    id="dialog-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g., Owner/Driver name"
+                    className="h-11"
+                    disabled={loading}
+                  />
+              </div>
+              </div>
+
+              {/* Right Column - Location Fields */}
+              <div className="space-y-4">
               <div className="space-y-2">
                   <Label htmlFor="dialog-state">State <span className="text-destructive">*</span></Label>
                 <Select value={state} onValueChange={handleStateChange} disabled={loading}>
@@ -764,6 +798,26 @@ export default function AddVendor() {
                     {statesData.map((s) => (
                       <SelectItem key={s.name} value={s.name}>
                         {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                  <Label htmlFor="dialog-district">District <span className="text-destructive">*</span></Label>
+                <Select 
+                  value={district} 
+                  onValueChange={handleDistrictChange} 
+                  disabled={loading || !state}
+                >
+                    <SelectTrigger id="dialog-district" className="h-11">
+                    <SelectValue placeholder={state ? "Select district" : "Select state first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDistricts.map((d) => (
+                      <SelectItem key={d.name} value={d.name}>
+                        {d.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -789,65 +843,6 @@ export default function AddVendor() {
                       </SelectContent>
                     </Select>
                   </div>
-
-
-               
-                
-
-              
-              </div>
-
-              
-
-              {/* Right Column */}
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="dialog-weight">Vehicle Weight (kg) <span className="text-destructive">*</span></Label>
-                  <Input
-                    id="dialog-weight"
-                    type="number"
-                    value={weight}
-                    onChange={(e) => setWeight(e.target.value)}
-                    placeholder="e.g., 2500"
-                    className="h-11"
-                    min="0"
-                    step="0.01"
-                    disabled={loading}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="dialog-name">Name</Label>
-                  <Input
-                    id="dialog-name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Owner/Driver name"
-                    className="h-11"
-                    disabled={loading}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="dialog-district">District <span className="text-destructive">*</span></Label>
-                <Select 
-                  value={district} 
-                  onValueChange={handleDistrictChange} 
-                  disabled={loading || !state}
-                >
-                    <SelectTrigger id="dialog-district" className="h-11">
-                    <SelectValue placeholder={state ? "Select district" : "Select state first"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableDistricts.map((d) => (
-                      <SelectItem key={d.name} value={d.name}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
               <div className="space-y-2">
                     <Label htmlFor="dialog-village">Village <span className="text-destructive">*</span></Label>
@@ -949,6 +944,8 @@ export default function AddVendor() {
                     <SelectItem value="Trailer">Trailer</SelectItem>
                     <SelectItem value="Tempo">Tempo</SelectItem>
                     <SelectItem value="Auto">Auto</SelectItem>
+                    <SelectItem value="Tractor">Tractor</SelectItem>
+                    <SelectItem value="Registered">Registered</SelectItem>
                     <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>

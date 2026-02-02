@@ -1,12 +1,16 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { environment } from '@/lib/environment';
+import { apiFetch, setApiToken } from '@/lib/apiClient';
 import { User, UserRole } from '@/types/biochar';
+
+const useRailway = environment.useRailway;
+const RAILWAY_USER_KEY = 'railway_user';
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
+  login: (email: string, password: string, role?: UserRole) => Promise<boolean | { needsRoleSelection: true; roles: string[] }>;
   logout: () => Promise<void>;
   signup: (email: string, password: string, name: string, role: UserRole) => Promise<{ success: boolean; message: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
@@ -35,9 +39,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const checkSession = async () => {
       try {
         console.log('🔍 Checking existing session...');
-        
-        // Check if using placeholder credentials (development mode)
-        if (environment.supabaseUrl.includes('placeholder')) {
+
+        if (useRailway) {
+          const token = localStorage.getItem('railway_token');
+          if (token) {
+            try {
+              const url = `${environment.apiBaseUrl}/api/auth/me`;
+              const res = await fetch(url, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (res.ok) {
+                const data = await res.json();
+                const u = data.user as User;
+                setUser(u);
+                localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(u));
+                console.log('✅ User set from Railway token:', u);
+              } else if (res.status === 401) {
+                localStorage.removeItem('railway_token');
+                localStorage.removeItem(RAILWAY_USER_KEY);
+                setUser(null);
+                console.log('ℹ️ Token expired or invalid');
+              } else {
+                const cached = localStorage.getItem(RAILWAY_USER_KEY);
+                if (cached) {
+                  try {
+                    setUser(JSON.parse(cached) as User);
+                    console.log('✅ Restored user from cache (API error)');
+                  } catch {
+                    setUser(null);
+                  }
+                } else {
+                  setUser(null);
+                }
+              }
+            } catch (err) {
+              const cached = localStorage.getItem(RAILWAY_USER_KEY);
+              if (cached) {
+                try {
+                  setUser(JSON.parse(cached) as User);
+                  console.log('✅ Restored user from cache (network error)');
+                } catch {
+                  setUser(null);
+                }
+              } else {
+                setUser(null);
+              }
+            }
+          } else {
+            localStorage.removeItem(RAILWAY_USER_KEY);
+            setUser(null);
+          }
+        } else if (environment.supabaseUrl.includes('placeholder')) {
           console.log('🧪 Development mode: Checking localStorage session');
           
           // Check for stored user session in localStorage
@@ -80,8 +132,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     checkSession();
 
-    // Only set up Supabase auth listener if not in development mode
-    if (!environment.supabaseUrl.includes('placeholder')) {
+    // Only set up Supabase auth listener if not in development mode and not using Railway
+    if (!useRailway && !environment.supabaseUrl.includes('placeholder')) {
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
         console.log('🔄 Auth state change:', event);
         
@@ -105,7 +157,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, []);
 
-  const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
+  const login = async (email: string, password: string, role?: UserRole): Promise<boolean | { needsRoleSelection: true; roles: string[] }> => {
     try {
       console.log('🔑 Starting login process...');
       console.log('📧 Email:', email);
@@ -127,6 +179,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error('Password must be at least 6 characters long');
       }
 
+      if (useRailway) {
+        const res = await fetch(`${environment.apiBaseUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, role }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+        if (data.user?.roles?.length > 1 && !role) {
+          return { needsRoleSelection: true, roles: data.user.roles };
+        }
+        setApiToken(data.token);
+        const basicUser: User = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name,
+          role: data.user.role,
+        };
+        setUser(basicUser);
+        localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(basicUser));
+        return true;
+      }
       // Check if using placeholder credentials (development mode)
       if (environment.supabaseUrl.includes('placeholder')) {
         console.log('🧪 Development mode: Using local storage for login');
@@ -212,7 +288,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = async () => {
     try {
       console.log('🚪 Starting logout...');
-      
+      if (useRailway) {
+        setApiToken(null);
+        localStorage.removeItem(RAILWAY_USER_KEY);
+        setUser(null);
+        return;
+      }
       // Check if using placeholder credentials (development mode)
       if (environment.supabaseUrl.includes('placeholder')) {
         console.log('🧪 Development mode: Clearing localStorage session');
@@ -244,6 +325,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return { success: false, message: 'Please enter a valid email address' };
       }
 
+      if (useRailway) {
+        const res = await fetch(`${environment.apiBaseUrl}/api/auth/signup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, name, role }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          return { success: false, message: data.message || 'Failed to create account' };
+        }
+        setApiToken(data.token);
+        const basicUser: User = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name,
+          role: data.user.role,
+        };
+        setUser(basicUser);
+        localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(basicUser));
+        return { success: true, message: data.message || 'Account created and logged in successfully!' };
+      }
       // Check if using placeholder credentials (development mode)
       if (environment.supabaseUrl.includes('placeholder')) {
         console.log('🧪 Development mode: Using local storage for signup');
@@ -336,9 +438,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const resetPassword = async (email: string): Promise<{ success: boolean; message: string }> => {
     try {
+      if (useRailway) {
+        return { success: false, message: 'Password reset not yet implemented for Railway. Please contact support.' };
+      }
       console.log('🔄 Starting password reset...');
       const { error } = await supabase.auth.resetPasswordForEmail(email);
-      
+
       if (error) {
         console.error('❌ Reset password error:', error);
         return { success: false, message: error.message || 'Failed to send reset email' };

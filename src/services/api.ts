@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { environment } from '@/lib/environment';
+import { apiFetch } from '@/lib/apiClient';
 import type {
   RawBiomassProcurement,
   Expense,
@@ -10,30 +11,53 @@ import type {
   Vehicle,
 } from '@/types/biochar';
 
+const useRailway = environment.useRailway;
+
 // Stock Points
 export async function getStockPoints(): Promise<StockPoint[]> {
+  if (useRailway) {
+    const data = await apiFetch<StockPoint[]>('/api/stock-points');
+    return Array.isArray(data) ? data : [];
+  }
   const { data, error } = await supabase
     .from('stock_points')
     .select('*')
     .order('name');
-
   if (error) throw error;
   return data || [];
 }
 
 // Plants
 export async function getPlants(): Promise<Plant[]> {
+  if (useRailway) {
+    const data = await apiFetch<Plant[]>('/api/plants');
+    return Array.isArray(data) ? data : [];
+  }
   const { data, error } = await supabase
     .from('plants')
     .select('*')
     .order('name');
-
   if (error) throw error;
   return data || [];
 }
 
 // Vehicles
 export async function getVehicles(userId?: string): Promise<(Vehicle & { created_at?: string })[]> {
+  if (useRailway) {
+    const data = await apiFetch<any[]>('/api/vehicles');
+    return (data || []).map((item) => ({
+      id: item.id,
+      vehicleNumber: item.vehicleNumber,
+      weight: parseFloat(item.weight) || 0,
+      type: item.type,
+      name: item.name,
+      district: item.district,
+      subDistrict: item.subDistrict,
+      village: item.village,
+      state: item.state,
+      created_at: item.created_at,
+    }));
+  }
   // Check if using placeholder credentials (development mode)
   if (environment.supabaseUrl.includes('placeholder')) {
     console.log('🧪 Development mode: Using localStorage for vehicles');
@@ -176,6 +200,32 @@ export async function createVehicle(
   vehicle: Omit<Vehicle, 'id'>,
   userId: string
 ): Promise<Vehicle> {
+  if (useRailway) {
+    const data = await apiFetch<any>('/api/vehicles', {
+      method: 'POST',
+      body: JSON.stringify({
+        vehicleNumber: vehicle.vehicleNumber,
+        weight: vehicle.weight,
+        type: vehicle.type,
+        name: vehicle.name,
+        district: vehicle.district,
+        subDistrict: vehicle.subDistrict,
+        village: vehicle.village,
+        state: vehicle.state,
+      }),
+    });
+    return {
+      id: data.id,
+      vehicleNumber: data.vehicleNumber,
+      weight: parseFloat(data.weight) || 0,
+      type: data.type,
+      name: data.name,
+      district: data.district,
+      subDistrict: data.subDistrict,
+      village: data.village,
+      state: data.state,
+    };
+  }
   // Check if using placeholder credentials (development mode)
   if (environment.supabaseUrl.includes('placeholder')) {
     console.log('🧪 Development mode: Creating vehicle in localStorage');
@@ -254,7 +304,32 @@ export async function updateVehicle(
   userId: string
 ): Promise<Vehicle> {
   console.log('🔄 Updating vehicle:', { vehicleId, userId });
-  
+  if (useRailway) {
+    const data = await apiFetch<any>(`/api/vehicles/${vehicleId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        vehicleNumber: vehicle.vehicleNumber,
+        weight: vehicle.weight,
+        type: vehicle.type,
+        name: vehicle.name,
+        district: vehicle.district,
+        subDistrict: vehicle.subDistrict,
+        village: vehicle.village,
+        state: vehicle.state,
+      }),
+    });
+    return {
+      id: data.id,
+      vehicleNumber: data.vehicleNumber,
+      weight: parseFloat(data.weight) || 0,
+      type: data.type,
+      name: data.name,
+      district: data.district,
+      subDistrict: data.subDistrict,
+      village: data.village,
+      state: data.state,
+    };
+  }
   // Check if using placeholder credentials (development mode)
   if (environment.supabaseUrl.includes('placeholder')) {
     console.log('🧪 Development mode: Updating vehicle in localStorage');
@@ -430,7 +505,10 @@ export async function deleteVehicle(
   userId: string
 ): Promise<void> {
   console.log('🗑️ Deleting vehicle:', { vehicleId, userId });
-  
+  if (useRailway) {
+    await apiFetch(`/api/vehicles/${vehicleId}`, { method: 'DELETE' });
+    return;
+  }
   // Check if using placeholder credentials (development mode)
   if (environment.supabaseUrl.includes('placeholder')) {
     console.log('🧪 Development mode: Deleting vehicle from localStorage');
@@ -549,20 +627,51 @@ export async function syncLocalRecordsToDatabase() {
   try {
     const localRecords = JSON.parse(localStorage.getItem('localProcurementRecords') || '[]');
     const recordsToSync = localRecords.filter((record: any) => record.savedLocally);
-    
+
     if (recordsToSync.length === 0) {
       console.log('📱 No local records to sync');
       return;
     }
-    
+
     console.log(`🔄 Attempting to sync ${recordsToSync.length} local records to database...`);
-    
+
     let syncedCount = 0;
     let failedCount = 0;
-    
+
     for (const record of recordsToSync) {
       try {
-        // Try to save this record to database
+        if (useRailway) {
+          await createRawBiomassProcurement({
+            stockPointId: record.stockPointId,
+            source: record.source || 'cotton_stalks',
+            vehicleNumber: record.vehicleNumber,
+            vehicleWeight: record.vehicleWeight,
+            vehiclePhoto: record.vehiclePhoto,
+            grossWeight: record.grossWeight,
+            weightRecordPhoto: record.weightRecordPhoto,
+            netWeight: record.netWeight,
+            procurementDate: new Date(record.procurementDate),
+            createdBy: record.createdBy,
+            procurementId: record.procurementId,
+            locationLatitude: record.locationLatitude,
+            locationLongitude: record.locationLongitude,
+            geojsonData: record.geojsonData,
+            name: record.name,
+            state: record.state,
+            district: record.district,
+            village: record.village,
+            vehicleType: record.vehicleType,
+            moisturePhoto: record.moisturePhoto,
+            moisturePercentage: record.moisturePercentage,
+          });
+          syncedCount++;
+          const updatedRecords = localRecords.filter((r: any) => r.id !== record.id);
+          localStorage.setItem('localProcurementRecords', JSON.stringify(updatedRecords));
+          localStorage.removeItem(`local-photos-${record.id}-vehicle`);
+          localStorage.removeItem(`local-photos-${record.id}-weight`);
+          localStorage.removeItem(`local-photos-${record.id}-moisture`);
+        } else {
+        // Try to save this record to database (Supabase)
         const { error } = await supabase
           .from('raw_biomass_procurement')
           .insert({
@@ -602,6 +711,7 @@ export async function syncLocalRecordsToDatabase() {
           failedCount++;
           console.warn(`❌ Failed to sync record ${record.id}:`, error);
         }
+        }
       } catch (e) {
         failedCount++;
         console.warn(`❌ Error syncing record ${record.id}:`, e);
@@ -626,6 +736,56 @@ export async function createRawBiomassProcurement(
     moisturePercentage?: string | number | null;
   }
 ): Promise<RawBiomassProcurement> {
+  if (useRailway) {
+    const data = await apiFetch<any>('/api/raw-biomass-procurement', {
+      method: 'POST',
+      body: JSON.stringify({
+        stockPointId: procurement.stockPointId,
+        source: procurement.source || 'cotton_stalks',
+        vehicleNumber: procurement.vehicleNumber,
+        vehicleWeight: procurement.vehicleWeight,
+        vehiclePhoto: procurement.vehiclePhoto,
+        grossWeight: procurement.grossWeight,
+        weightRecordPhoto: procurement.weightRecordPhoto,
+        netWeight: procurement.netWeight,
+        procurementDate: procurement.procurementDate?.toISOString?.() ?? procurement.procurementDate,
+        createdBy: procurement.createdBy,
+        locationLatitude: procurement.locationLatitude,
+        locationLongitude: procurement.locationLongitude,
+        geojsonData: procurement.geojsonData,
+        name: procurement.name,
+        state: procurement.state,
+        district: procurement.district,
+        village: procurement.village,
+        vehicleType: procurement.vehicleType,
+        moisture: procurement.moisturePercentage ?? procurement.moisture,
+      }),
+    });
+    return {
+      id: data.id,
+      stockPointId: data.stockPointId,
+      source: data.source,
+      vehicleNumber: data.vehicleNumber,
+      vehicleWeight: data.vehicleWeight,
+      vehiclePhoto: data.vehiclePhoto,
+      grossWeight: data.grossWeight,
+      weightRecordPhoto: data.weightRecordPhoto,
+      netWeight: data.netWeight,
+      procurementDate: new Date(data.procurementDate),
+      createdBy: data.createdBy,
+      createdByEmail: data.createdByEmail,
+      procurementId: data.procurementId,
+      locationLatitude: data.locationLatitude,
+      locationLongitude: data.locationLongitude,
+      geojsonData: data.geojsonData,
+      name: data.name,
+      state: data.state,
+      district: data.district,
+      village: data.village,
+      vehicleType: data.vehicleType,
+      moisture: data.moisture,
+    };
+  }
   // Check if using placeholder credentials (development mode)
   if (environment.supabaseUrl.includes('placeholder')) {
     console.log('🧪 Development mode: Creating procurement record in localStorage');
@@ -983,7 +1143,38 @@ export async function getRawBiomassProcurements(
   userId?: string
 ): Promise<RawBiomassProcurement[]> {
   console.log('🔍 Getting procurement records for user:', userId);
-  
+  if (useRailway) {
+    const params = new URLSearchParams();
+    if (stockPointId) params.set('stockPointId', stockPointId);
+    if (fromDate) params.set('fromDate', fromDate.toISOString().split('T')[0]);
+    if (toDate) params.set('toDate', toDate.toISOString().split('T')[0]);
+    const data = await apiFetch<any[]>(`/api/raw-biomass-procurement?${params}`);
+    return (data || []).map((item) => ({
+      id: item.id,
+      stockPointId: item.stockPointId || '',
+      source: item.source,
+      vehicleNumber: item.vehicleNumber,
+      vehicleWeight: item.vehicleWeight || 0,
+      vehiclePhoto: item.vehiclePhoto || '',
+      grossWeight: item.grossWeight,
+      weightRecordPhoto: item.weightRecordPhoto || '',
+      netWeight: item.netWeight,
+      procurementDate: new Date(item.procurementDate),
+      createdBy: item.createdBy,
+      createdByEmail: item.createdByEmail,
+      procurementId: item.procurementId,
+      locationLatitude: item.locationLatitude,
+      locationLongitude: item.locationLongitude,
+      geojsonData: item.geojsonData,
+      createdAt: item.createdAt ? new Date(item.createdAt) : undefined,
+      name: item.name,
+      state: item.state,
+      district: item.district,
+      village: item.village,
+      vehicleType: item.vehicleType,
+      moisture: item.moisture,
+    }));
+  }
   // Check if using placeholder credentials (development mode)
   if (environment.supabaseUrl.includes('placeholder')) {
     console.log('🧪 Development mode: Using localStorage for procurement records');
@@ -993,8 +1184,33 @@ export async function getRawBiomassProcurements(
     
     // Filter by user ID if provided
     if (userId) {
-      const userRecords = records.filter((r: any) => r.created_by === userId);
-      console.log('✅ Found procurement records in localStorage:', userRecords.length, 'for user:', userId);
+      console.log('🔍 DEBUG: Filtering records for user:', userId);
+      console.log('🔍 DEBUG: Available records:', records.length);
+      
+      // Show sample record user IDs for debugging
+      if (records.length > 0) {
+        console.log('🔍 DEBUG: Sample record user IDs:');
+        records.slice(0, 3).forEach((r: any, idx: number) => {
+          console.log(`  Record ${idx + 1}: created_by=${r.created_by}, created_by_email=${r.created_by_email}`);
+        });
+      }
+      
+      const userRecords = records.filter((r: any) => {
+        const matches = r.created_by === userId || r.created_by_email === userId;
+        if (!matches && records.length <= 5) {
+          console.log('🔍 DEBUG: Record does not match:', {
+            recordId: r.id,
+            created_by: r.created_by,
+            created_by_email: r.created_by_email,
+            targetUserId: userId,
+            createdByMatch: r.created_by === userId,
+            emailMatch: r.created_by_email === userId
+          });
+        }
+        return matches;
+      });
+      
+      console.log('✅ DEBUG: Filtered records found:', userRecords.length, 'for user:', userId);
       
       return userRecords.map((item: any) => ({
         id: item.id,
@@ -1125,6 +1341,30 @@ export async function getRawBiomassProcurements(
 export async function createExpense(
   expense: Omit<Expense, 'id' | 'createdAt'>
 ): Promise<Expense> {
+  if (useRailway) {
+    const data = await apiFetch<any>('/api/expenses', {
+      method: 'POST',
+      body: JSON.stringify({
+        stockPointId: expense.stockPointId,
+        date: expense.date?.toISOString?.() ?? expense.date,
+        amount: expense.amount,
+        type: expense.type,
+        paymentMode: expense.paymentMode,
+        receiptUrl: expense.receiptUrl,
+      }),
+    });
+    return {
+      id: data.id,
+      stockPointId: data.stockPointId,
+      date: new Date(data.date),
+      amount: parseFloat(data.amount),
+      type: data.type,
+      paymentMode: data.paymentMode,
+      receiptUrl: data.receiptUrl || '',
+      createdBy: data.createdBy,
+      createdAt: new Date(data.createdAt),
+    };
+  }
   // Map frontend values to database column names
   const expenseTypeMap: Record<string, string> = {
     'fuel': 'Fuel Expenses',
@@ -1185,6 +1425,26 @@ export async function getExpenses(
   expenseType?: string,
   inchargeId?: string
 ): Promise<Expense[]> {
+  if (useRailway) {
+    const params = new URLSearchParams();
+    if (stockPointId) params.set('stockPointId', stockPointId);
+    if (fromDate) params.set('fromDate', fromDate.toISOString().split('T')[0]);
+    if (toDate) params.set('toDate', toDate.toISOString().split('T')[0]);
+    if (expenseType) params.set('expenseType', expenseType);
+    if (inchargeId) params.set('inchargeId', inchargeId);
+    const data = await apiFetch<any[]>(`/api/expenses?${params}`);
+    return (data || []).map((item) => ({
+      id: item.id,
+      stockPointId: item.stockPointId,
+      date: new Date(item.date),
+      amount: parseFloat(item.amount),
+      type: item.type,
+      paymentMode: item.paymentMode,
+      receiptUrl: item.receiptUrl || '',
+      createdBy: item.createdBy,
+      createdAt: new Date(item.createdAt),
+    }));
+  }
   let query = supabase
     .from('expenses')
     .select('*')
@@ -1244,6 +1504,44 @@ export async function getExpenses(
 export async function createProcessedBiomassProcurement(
   procurement: Omit<ProcessedBiomassProcurement, 'id'>
 ): Promise<ProcessedBiomassProcurement> {
+  if (useRailway) {
+    const data = await apiFetch<any>('/api/processed-biomass-procurement', {
+      method: 'POST',
+      body: JSON.stringify({
+        plantId: procurement.plantId,
+        sourceStockPointId: procurement.sourceStockPointId,
+        vehicleNumber: procurement.vehicleNumber,
+        vehicleWeight: procurement.vehicleWeight,
+        vehiclePhoto: procurement.vehiclePhoto,
+        vehiclePhotoLatitude: procurement.vehiclePhotoLatitude,
+        vehiclePhotoLongitude: procurement.vehiclePhotoLongitude,
+        grossWeight: procurement.grossWeight,
+        weightRecordPhoto: procurement.weightRecordPhoto,
+        weightPhotoLatitude: procurement.weightPhotoLatitude,
+        weightPhotoLongitude: procurement.weightPhotoLongitude,
+        netWeight: procurement.netWeight,
+        procurementDate: procurement.procurementDate?.toISOString?.() ?? procurement.procurementDate,
+        createdBy: procurement.createdBy,
+      }),
+    });
+    return {
+      id: data.id,
+      plantId: data.plantId,
+      sourceStockPointId: data.sourceStockPointId,
+      vehicleNumber: data.vehicleNumber,
+      vehicleWeight: data.vehicleWeight,
+      vehiclePhoto: data.vehiclePhoto,
+      vehiclePhotoLatitude: data.vehiclePhotoLatitude,
+      vehiclePhotoLongitude: data.vehiclePhotoLongitude,
+      grossWeight: data.grossWeight,
+      weightRecordPhoto: data.weightRecordPhoto,
+      weightPhotoLatitude: data.weightPhotoLatitude,
+      weightPhotoLongitude: data.weightPhotoLongitude,
+      netWeight: data.netWeight,
+      procurementDate: new Date(data.procurementDate),
+      createdBy: data.createdBy,
+    };
+  }
   const { data, error } = await supabase
     .from('processed_biomass_procurement')
     .insert({
@@ -1289,6 +1587,23 @@ export async function createProcessedBiomassProcurement(
 export async function getProcessedBiomassProcurements(
   plantId?: string
 ): Promise<ProcessedBiomassProcurement[]> {
+  if (useRailway) {
+    const params = plantId ? `?plantId=${plantId}` : '';
+    const data = await apiFetch<any[]>(`/api/processed-biomass-procurement${params}`);
+    return (data || []).map((item) => ({
+      id: item.id,
+      plantId: item.plantId,
+      sourceStockPointId: item.sourceStockPointId,
+      vehicleNumber: item.vehicleNumber,
+      vehicleWeight: item.vehicleWeight,
+      vehiclePhoto: item.vehiclePhoto,
+      grossWeight: item.grossWeight,
+      weightRecordPhoto: item.weightRecordPhoto,
+      netWeight: item.netWeight,
+      procurementDate: new Date(item.procurementDate),
+      createdBy: item.createdBy,
+    }));
+  }
   let query = supabase
     .from('processed_biomass_procurement')
     .select('*')
@@ -1321,6 +1636,41 @@ export async function getProcessedBiomassProcurements(
 export async function createBiocharDeployment(
   deployment: Omit<BiocharDeployment, 'id' | 'createdAt'>
 ): Promise<BiocharDeployment> {
+  if (useRailway) {
+    const data = await apiFetch<any>('/api/biochar-deployment', {
+      method: 'POST',
+      body: JSON.stringify({
+        plantId: deployment.plantId,
+        farmerName: deployment.farmerName,
+        mobileNumber: deployment.mobileNumber,
+        aadhaarNumber: deployment.aadhaarNumber,
+        village: deployment.village,
+        mandal: deployment.mandal,
+        district: deployment.district,
+        landArea: deployment.landArea,
+        biocharWeight: deployment.biocharWeight,
+        numberOfBags: deployment.numberOfBags,
+        kmlData: deployment.kmlData,
+        createdBy: deployment.createdBy,
+      }),
+    });
+    return {
+      id: data.id,
+      plantId: data.plantId,
+      farmerName: data.farmerName,
+      mobileNumber: data.mobileNumber,
+      aadhaarNumber: data.aadhaarNumber,
+      village: data.village,
+      mandal: data.mandal,
+      district: data.district,
+      landArea: data.landArea,
+      biocharWeight: data.biocharWeight,
+      numberOfBags: data.numberOfBags,
+      kmlData: data.kmlData,
+      createdBy: data.createdBy,
+      createdAt: new Date(data.createdAt),
+    };
+  }
   const { data, error } = await supabase
     .from('biochar_deployment')
     .insert({
@@ -1363,6 +1713,26 @@ export async function createBiocharDeployment(
 export async function getBiocharDeployments(
   plantId?: string
 ): Promise<BiocharDeployment[]> {
+  if (useRailway) {
+    const params = plantId ? `?plantId=${plantId}` : '';
+    const data = await apiFetch<any[]>(`/api/biochar-deployment${params}`);
+    return (data || []).map((item) => ({
+      id: item.id,
+      plantId: item.plantId,
+      farmerName: item.farmerName,
+      mobileNumber: item.mobileNumber,
+      aadhaarNumber: item.aadhaarNumber,
+      village: item.village,
+      mandal: item.mandal,
+      district: item.district,
+      landArea: item.landArea,
+      biocharWeight: item.biocharWeight,
+      numberOfBags: item.numberOfBags,
+      kmlData: item.kmlData,
+      createdBy: item.createdBy,
+      createdAt: new Date(item.createdAt),
+    }));
+  }
   let query = supabase
     .from('biochar_deployment')
     .select('*')
@@ -1416,11 +1786,6 @@ export async function getDashboardStats(
   stockPointId?: string,
   plantId?: string
 ): Promise<DashboardStats> {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay());
-
   const stats: DashboardStats = {
     totalTripsToday: 0,
     netWeightToday: 0,
@@ -1437,6 +1802,16 @@ export async function getDashboardStats(
   };
 
   try {
+    if (useRailway) {
+      const data = await apiFetch<DashboardStats>('/api/dashboard-stats');
+      return { ...stats, ...data };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay());
+
     console.log('📊 getDashboardStats called:', { userId, role, stockPointId, plantId });
     
     if (role === 'supervisor_stockpoint') {
@@ -1494,9 +1869,7 @@ export async function getDashboardStats(
       // Also get today in UTC format for comparison
       const todayUTCStr = today.toISOString().split('T')[0];
       
-      // Reduced logging for performance
-      // console.log('📊 Filtering trips for today:', { todayLocal: todayDateStr, todayUTC: todayUTCStr, totalTrips: allUserTrips.length });
-      
+      // Filter trips for today
       const todayTrips = allUserTrips.filter(trip => {
         // Handle both Date objects and date strings
         let tripDate: Date;
@@ -1518,21 +1891,35 @@ export async function getDashboardStats(
         // Match if either local or UTC date matches today (handles timezone issues)
         const matches = tripLocalDateStr === todayDateStr || tripUTCStr === todayUTCStr;
         
-        // Reduced logging for performance
-        // if (matches) {
-        //   console.log('✅ Trip matches today:', trip.id);
-        // }
-        
         return matches;
       });
       
       console.log('📊 Today trips found:', todayTrips.length);
+      
+      // DEBUG: Show all trips for testing
+      console.log('🔍 DEBUG: All user trips details:');
+      allUserTrips.forEach((trip, idx) => {
+        const date = trip.procurementDate instanceof Date 
+          ? trip.procurementDate 
+          : new Date(trip.procurementDate as string);
+        console.log(`🔍 Trip ${idx + 1}:`, {
+          id: trip.id,
+          procurementDate: trip.procurementDate,
+          parsedDate: date.toISOString(),
+          localDate: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+          netWeight: trip.netWeight,
+          createdBy: trip.createdBy,
+          createdByEmail: trip.createdByEmail,
+          isToday: date.toISOString().split('T')[0] === todayUTCStr
+        });
+      });
       
       // If no trips match today, show why and log all available dates
       if (allUserTrips.length > 0 && todayTrips.length === 0) {
         console.warn('⚠️ No trips found for today, but trips exist:');
         console.warn('  Looking for date:', todayDateStr, 'or', todayUTCStr);
         console.warn('  Total user trips:', allUserTrips.length);
+        console.warn('  User ID being matched:', userId);
         
         // Group trips by date to see what dates we have
         const tripsByDate: Record<string, number> = {};
@@ -1546,24 +1933,29 @@ export async function getDashboardStats(
         
         console.warn('  Trips by date:', tripsByDate);
         
-        // Show sample trips
-        allUserTrips.slice(0, 5).forEach((trip, idx) => {
+        // Show sample trips with createdBy matching
+        console.warn('  Sample trip details:');
+        allUserTrips.slice(0, 3).forEach((trip, idx) => {
           const date = trip.procurementDate instanceof Date 
             ? trip.procurementDate 
             : new Date(trip.procurementDate as string);
           const tripLocal = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           const tripUTC = date.toISOString().split('T')[0];
           console.warn(`  Trip ${idx + 1}:`, {
+            id: trip.id,
             dateLocal: tripLocal,
             dateUTC: tripUTC,
             matchesLocal: tripLocal === todayDateStr,
             matchesUTC: tripUTC === todayUTCStr,
             netWeight: trip.netWeight,
-            createdBy: trip.createdBy
+            createdBy: trip.createdBy,
+            createdByEmail: trip.createdByEmail,
+            userIdMatch: trip.createdBy === userId || trip.createdByEmail === userId
           });
         });
         console.warn('💡 TIP: Dashboard shows only TODAY\'S records. If records were saved on different days, they won\'t appear.');
         console.warn('💡 Current date being checked:', todayDateStr);
+        console.warn('💡 Check if trip.createdBy matches current user ID:', userId);
       }
       
       stats.totalTripsToday = todayTrips.length;
@@ -1606,11 +1998,10 @@ export async function getDashboardStats(
       console.log('📊 Final stats:', { 
         totalTripsToday: stats.totalTripsToday, 
         netWeightToday: stats.netWeightToday,
+        netWeightThisWeek: stats.netWeightThisWeek,
         pendingUploads: stats.pendingUploads,
-        todayTripsSample: todayTrips.slice(0, 2).map(t => ({
-          date: t.procurementDate instanceof Date ? t.procurementDate.toISOString().split('T')[0] : t.procurementDate,
-          netWeight: t.netWeight
-        }))
+        todayDate: todayDateStr,
+        totalUserTrips: allUserTrips.length
       });
       
       // Ensure we return valid stats even if calculation fails
