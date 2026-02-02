@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Biochar API Test - Shareable</title>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #f5f5f5;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header { 
+            text-align: center; 
+            color: #333; 
+            border-bottom: 2px solid #007bff; 
+            padding-bottom: 10px; 
+            margin-bottom: 20px;
+        }
+        .section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            border: 1px solid #ddd; 
+            border-radius: 5px;
+        }
+        button { 
+            padding: 10px 15px; 
+            margin: 5px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        .result { 
+            background: #f8f9fa; 
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .error { background: #f8d7da; border-left: 4px solid #dc3545; }
+        .success { background: #d4edda; border-left: 4px solid #28a745; }
+        .loading { background: #fff3cd; border-left: 4px solid #ffc107; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+        .status { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            font-weight: bold;
+        }
+        .config-section { 
+            background: #e9ecef; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px;
+        }
+        input { 
+            padding: 8px; 
+            margin: 5px; 
+            border: 1px solid #ddd; 
+            border-radius: 3px; 
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🧪 Biochar Management System API Test</h1>
+            <p>Test and verify API endpoints are working correctly</p>
+        </div>
+        
+        <div class="config-section">
+            <h3>🔧 API Configuration</h3>
+            <p><strong>Supabase URL:</strong> <input type="text" id="supabaseUrl" placeholder="https://your-project.supabase.co"></p>
+            <p><strong>API Key:</strong> <input type="text" id="supabaseKey" placeholder="your-supabase-anon-key"></p>
+            <button onclick="setConfig()">Set Configuration</button>
+            <button onclick="testConnection()">Test Connection</button>
+            <div id="connectionStatus" class="status"></div>
+        </div>
+
+        <div class="section">
+            <h3>📍 Stock Points API</h3>
+            <button onclick="testStockPoints()">Get All Stock Points</button>
+            <div id="stockResult" class="result">Click to test...</div>
+        </div>
+
+        <div class="section">
+            <h3>🚚 Vehicles API</h3>
+            <button onclick="testVehicles()">Get All Vehicles</button>
+            <button onclick="testCreateVehicle()">Create Test Vehicle</button>
+            <div id="vehicleResult" class="result">Click to test...</div>
+        </div>
+
+        <div class="section">
+            <h3>🌾 Procurement Records API</h3>
+            <button onclick="testProcurement()">Get Recent Records (5)</button>
+            <button onclick="testAllProcurement()">Get All Records</button>
+            <div id="procurementResult" class="result">Click to test...</div>
+        </div>
+
+        <div class="section">
+            <h3>💰 Expenses API</h3>
+            <button onclick="testExpenses()">Get Recent Expenses</button>
+            <div id="expenseResult" class="result">Click to test...</div>
+        </div>
+
+        <div class="section">
+            <h3>📊 API Summary</h3>
+            <button onclick="runAllTests()">Run All Tests</button>
+            <div id="summaryResult" class="result">Click to run all tests...</div>
+        </div>
+    </div>
+
+    <script>
+        let SUPABASE_URL = '';
+        let SUPABASE_KEY = '';
+
+        function setConfig() {
+            SUPABASE_URL = document.getElementById('supabaseUrl').value;
+            SUPABASE_KEY = document.getElementById('supabaseKey').value;
+            
+            if (SUPABASE_URL && SUPABASE_KEY) {
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<div class="success">✅ Configuration set successfully!</div>';
+            } else {
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<div class="error">❌ Please enter both URL and API Key</div>';
+            }
+        }
+
+        async function testConnection() {
+            if (!SUPABASE_URL || !SUPABASE_KEY) {
+                document.getElementById('connectionStatus').innerHTML = 
+                    '<div class="error">❌ Please set configuration first</div>';
+                return;
+            }
+
+            document.getElementById('connectionStatus').innerHTML = 
+                '<div class="loading">🔄 Testing connection...</div>';
+
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/stock_points?limit=1`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+
+                if (response.ok) {
+                    document.getElementById('connectionStatus').innerHTML = 
+                        '<div class="success">✅ Connection successful! API is accessible.</div>';
+                } else {
+                    document.getElementById('connectionStatus').innerHTML = 
+                        `<div class="error">❌ Connection failed: HTTP ${response.status}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('connectionStatus').innerHTML = 
+                    `<div class="error">❌ Connection error: ${error.message}</div>`;
+            }
+        }
+
+        async function testStockPoints() {
+            showResult('stockResult', '🔄 Testing Stock Points API...');
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/stock_points`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('stockResult', 
+                        `✅ Success: Found ${data.length} stock points<br>` +
+                        `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('stockResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testVehicles() {
+            showResult('vehicleResult', '🔄 Testing Vehicles API...');
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/vehicles`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('vehicleResult', 
+                        `✅ Success: Found ${data.length} vehicles<br>` +
+                        `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('vehicleResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCreateVehicle() {
+            showResult('vehicleResult', '🔄 Creating test vehicle...');
+            try {
+                const testVehicle = {
+                    vehicle_number: `TEST-${Date.now()}`,
+                    weight: 1000,
+                    type: 'registered'
+                };
+                
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/vehicles`, {
+                    method: 'POST',
+                    headers: {
+                        ...getHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testVehicle)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    showResult('vehicleResult', 
+                        `✅ Vehicle created successfully!<br>` +
+                        `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('vehicleResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testProcurement() {
+            showResult('procurementResult', '🔄 Testing Procurement API...');
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/raw_biomass_procurement?limit=5&order=created_at desc`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('procurementResult', 
+                        `✅ Success: Found ${data.length} recent procurement records<br>` +
+                        `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('procurementResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAllProcurement() {
+            showResult('procurementResult', '🔄 Getting all procurement records...');
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/raw_biomass_procurement`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('procurementResult', 
+                        `✅ Success: Found ${data.length} total procurement records<br>` +
+                        `<pre>${JSON.stringify(data.slice(0, 3), null, 2)}</pre>` +
+                        `<small>...showing first 3 of ${data.length} records</small>`, 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('procurementResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testExpenses() {
+            showResult('expenseResult', '🔄 Testing Expenses API...');
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/expenses?limit=5&order=created_at desc`, {
+                    headers: getHeaders()
+                });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('expenseResult', 
+                        `✅ Success: Found ${data.length} recent expenses<br>` +
+                        `<pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                showResult('expenseResult', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function runAllTests() {
+            showResult('summaryResult', '🔄 Running all API tests...');
+            
+            const tests = [
+                { name: 'Stock Points', func: testStockPoints },
+                { name: 'Vehicles', func: testVehicles },
+                { name: 'Procurement', func: testProcurement },
+                { name: 'Expenses', func: testExpenses }
+            ];
+
+            let results = [];
+            
+            for (const test of tests) {
+                try {
+                    await test.func();
+                    results.push(`✅ ${test.name}: Working`);
+                } catch (error) {
+                    results.push(`❌ ${test.name}: Failed`);
+                }
+            }
+
+            showResult('summaryResult', 
+                `<h3>📊 Test Summary</h3><br>` +
+                results.join('<br>') +
+                `<br><br><small>Completed at: ${new Date().toLocaleString()}</small>`, 
+                results.every(r => r.includes('✅')) ? 'success' : 'error');
+        }
+
+        function getHeaders() {
+            return {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`,
+                'Content-Type': 'application/json'
+            };
+        }
+
+        function showResult(elementId, message, type = '') {
+            const element = document.getElementById(elementId);
+            element.innerHTML = message;
+            element.className = `result ${type}`;
+        }
+    </script>
+</body>
+</html>

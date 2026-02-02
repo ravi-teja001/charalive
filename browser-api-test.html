@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Biochar API Tester</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        input, button { padding: 8px; margin: 5px; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; }
+        .error { background: #ffe6e6; }
+        .success { background: #e6ffe6; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Biochar API Tester</h1>
+    
+    <div class="section">
+        <h3>Configuration</h3>
+        <input type="text" id="supabaseUrl" placeholder="Supabase URL" size="50">
+        <input type="text" id="supabaseKey" placeholder="Supabase Key" size="50">
+        <button onclick="setConfig()">Set Config</button>
+    </div>
+
+    <div class="section">
+        <h3>Test Stock Points</h3>
+        <button onclick="testStockPoints()">Get Stock Points</button>
+        <div id="stockResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h3>Test Vehicles</h3>
+        <button onclick="testVehicles()">Get Vehicles</button>
+        <button onclick="testCreateVehicle()">Create Test Vehicle</button>
+        <div id="vehicleResult" class="result"></div>
+    </div>
+
+    <div class="section">
+        <h3>Test Procurement</h3>
+        <button onclick="testProcurement()">Get Procurement Records</button>
+        <div id="procurementResult" class="result"></div>
+    </div>
+
+    <script>
+        let SUPABASE_URL = '';
+        let SUPABASE_KEY = '';
+
+        function setConfig() {
+            SUPABASE_URL = document.getElementById('supabaseUrl').value;
+            SUPABASE_KEY = document.getElementById('supabaseKey').value;
+            alert('Configuration set!');
+        }
+
+        async function testStockPoints() {
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/stock_points`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                const data = await response.json();
+                document.getElementById('stockResult').innerHTML = 
+                    `<div class="success">✅ Success: ${data.length} stock points found</div>
+                     <pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('stockResult').innerHTML = 
+                    `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testVehicles() {
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/vehicles`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                const data = await response.json();
+                document.getElementById('vehicleResult').innerHTML = 
+                    `<div class="success">✅ Success: ${data.length} vehicles found</div>
+                     <pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('vehicleResult').innerHTML = 
+                    `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testCreateVehicle() {
+            try {
+                const testVehicle = {
+                    vehicle_number: `TEST-${Date.now()}`,
+                    weight: 1000,
+                    type: 'registered'
+                };
+                
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/vehicles`, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(testVehicle)
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('vehicleResult').innerHTML = 
+                        `<div class="success">✅ Vehicle created successfully</div>
+                         <pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                document.getElementById('vehicleResult').innerHTML = 
+                    `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+
+        async function testProcurement() {
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/raw_biomass_procurement?limit=5`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                const data = await response.json();
+                document.getElementById('procurementResult').innerHTML = 
+                    `<div class="success">✅ Success: ${data.length} procurement records found</div>
+                     <pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('procurementResult').innerHTML = 
+                    `<div class="error">❌ Error: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>
