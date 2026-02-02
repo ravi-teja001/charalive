@@ -1,0 +1,6 @@
+# Railway configuration for API server
+# In Railway: Settings → Root Directory = "server"
+# Dockerfile is auto-detected for build
+[deploy]
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
