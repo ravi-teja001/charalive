@@ -11,6 +11,10 @@ const PORT = process.env.PORT || 3001;
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '10mb' }));
 
+// Root - avoid "Cannot GET /" when visiting API URL directly
+app.get('/', (_, res) => res.json({ service: 'Biochar API', status: 'ok', docs: '/api/health' }));
+app.get('/api', (_, res) => res.json({ message: 'Biochar API', endpoints: ['/api/health', '/api/auth/login', '/api/auth/me'] }));
+
 // Health check
 app.get('/api/health', (_, res) => res.json({ status: 'ok', database: 'railway' }));
 
@@ -206,7 +210,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.post('/api/auth/me', authMiddleware, async (req, res) => {
+const authMeHandler = async (req: express.Request, res: express.Response) => {
   const payload = (req as any).user as JwtPayload;
   const { rows } = await pool.query(
     'SELECT id, email, name, role, stock_point_id, plant_id FROM users WHERE id = $1',
@@ -218,7 +222,9 @@ app.post('/api/auth/me', authMiddleware, async (req, res) => {
   }
   const u = rows[0];
   res.json({ user: { id: u.id, email: u.email, name: u.name, role: u.role } });
-});
+};
+app.get('/api/auth/me', authMiddleware, authMeHandler);
+app.post('/api/auth/me', authMiddleware, authMeHandler);
 
 // ============ STOCK POINTS ============
 app.get('/api/stock-points', authMiddleware, async (_, res) => {

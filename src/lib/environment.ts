@@ -3,8 +3,8 @@ export const environment = {
   /** @deprecated Use apiBaseUrl for Railway Postgres migration */
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL || '',
   supabaseKey: import.meta.env.VITE_SUPABASE_KEY || '',
-  /** In dev: use '' so Vite proxies /api to API server. In prod: use VITE_API_BASE_URL */
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '' : 'http://localhost:3001'),
+  /** In dev: use '' so Vite proxies /api to API server. In prod: always use production API, never localhost */
+  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '' : 'https://charalive-production.up.railway.app'),
   /** Use Railway by default; set VITE_USE_RAILWAY=false to use Supabase */
   useRailway: import.meta.env.VITE_USE_RAILWAY !== 'false',
   mapboxToken: import.meta.env.VITE_MAPBOX_TOKEN || '',
