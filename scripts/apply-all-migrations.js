@@ -19,7 +19,12 @@ function loadEnv(path) {
   const content = readFileSync(path, 'utf8');
   for (const line of content.split('\n')) {
     const m = line.match(/^([^#=]+)=(.*)$/);
-    if (m) process.env[m[1].trim()] = m[2].trim().replace(/^["']|["']$/g, '');
+    if (m) {
+      const key = m[1].trim();
+      if (!(key in process.env)) {
+        process.env[key] = m[2].trim().replace(/^["']|["']$/g, '');
+      }
+    }
   }
 }
 loadEnv(join(root, 'server', '.env'));
@@ -33,6 +38,12 @@ if (!connectionString) {
   console.error('   Or set it in server/.env');
   process.exit(1);
 }
+
+const maskedConnectionString = connectionString.replace(
+  /(postgresql:\/\/[^:]+):[^@]+@/,
+  (_, prefix) => `${prefix}:***@`
+);
+console.log(`🔗 Using database connection: ${maskedConnectionString}`);
 
 const migrations = [
   { file: 'railway-schema.sql', name: 'Main schema' },
