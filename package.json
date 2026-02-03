@@ -13,6 +13,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "setup-db": "node scripts/apply-all-migrations.js",
+    "push": "bash scripts/push-auto.sh",
+    "push:auto": "bash scripts/push-auto.sh",
     "deploy:railway": "cd server && railway up",
     "deploy:all": "bash scripts/deploy-all.sh"
   },
