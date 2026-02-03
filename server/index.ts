@@ -161,16 +161,31 @@ app.post('/api/auth/signup', async (req, res) => {
       token,
     });
   } catch (e: any) {
-    console.error('Signup error:', e?.message || e);
-    if (e.code === '23505') {
+    const errMsg = e?.message ?? (typeof e === 'string' ? e : '');
+    const errCode = e?.code ?? e?.errno ?? '';
+    const errStr = errMsg || (e && typeof e === 'object' ? JSON.stringify(e).slice(0, 200) : String(e));
+    console.error('Signup error:', errMsg || errStr, 'code:', errCode, e);
+    if (e?.code === '23505') {
       res.status(400).json({ success: false, message: 'User with this email already exists' });
       return;
     }
-    if (e.code === '42P01') {
+    if (e?.code === '23514') {
+      res.status(400).json({ success: false, message: 'Invalid role. Use: supervisor_stockpoint, incharge, or supervisor_plant.' });
+      return;
+    }
+    if (e?.code === '42P01') {
       res.status(500).json({ success: false, message: 'Database table missing. Run migrations: npm run setup-db with DATABASE_URL set.' });
       return;
     }
-    const msg = e?.message || 'Failed to create account';
+    if (errCode === 'ECONNREFUSED' || (errStr && (errStr.includes('connect') || errStr.includes('ECONNREFUSED')))) {
+      res.status(500).json({ success: false, message: 'Database connection failed. Set DATABASE_URL on Railway and redeploy.' });
+      return;
+    }
+    if (errStr && (errStr.includes('SASL') || errStr.includes('password must be a string'))) {
+      res.status(500).json({ success: false, message: 'Database auth failed. Check DATABASE_URL password on Railway.' });
+      return;
+    }
+    const msg = errStr || 'Failed to create account';
     res.status(500).json({ success: false, message: msg });
   }
 });
@@ -715,8 +730,18 @@ app.post('/api/biochar-deployment', authMiddleware, async (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
+// Start server and verify DB connection
+app.listen(PORT, async () => {
   console.log(`🚀 Biochar API server running on port ${PORT}`);
-  console.log(`   Database: Railway Postgres`);
+  const hasDb = !!process.env.DATABASE_URL || !!process.env.PG_CONNECTION_STRING;
+  if (!hasDb) {
+    console.error('❌ DATABASE_URL not set. Signup and all DB features will fail.');
+  } else {
+    try {
+      await pool.query('SELECT 1');
+      console.log('✅ Database connected (Railway Postgres)');
+    } catch (e: any) {
+      console.error('❌ Database connection failed:', e?.message || e);
+    }
+  }
 });
