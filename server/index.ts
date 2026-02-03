@@ -157,12 +157,17 @@ app.post('/api/auth/signup', async (req, res) => {
       token,
     });
   } catch (e: any) {
+    console.error('Signup error:', e?.message || e);
     if (e.code === '23505') {
       res.status(400).json({ success: false, message: 'User with this email already exists' });
-    } else {
-      console.error('Signup error:', e);
-      res.status(500).json({ success: false, message: e.message || 'Failed to create account' });
+      return;
     }
+    if (e.code === '42P01') {
+      res.status(500).json({ success: false, message: 'Database table missing. Run migrations: npm run setup-db with DATABASE_URL set.' });
+      return;
+    }
+    const msg = e?.message || 'Failed to create account';
+    res.status(500).json({ success: false, message: msg });
   }
 });
 

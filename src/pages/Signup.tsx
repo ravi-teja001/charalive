@@ -214,6 +214,7 @@ export default function Signup() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-12 bg-background border-border/50 focus:border-primary focus:ring-1 focus:ring-primary pr-10"
+                    autoComplete="new-password"
                     required
                   />
                   <button
@@ -243,6 +244,7 @@ export default function Signup() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="h-12 bg-background border-border/50 focus:border-primary focus:ring-1 focus:ring-primary pr-10"
+                    autoComplete="new-password"
                     required
                   />
                   <button

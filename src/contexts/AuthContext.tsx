@@ -331,8 +331,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, name, role }),
         });
-        const data = await res.json();
-        if (!data.success) {
+        let data: { success?: boolean; message?: string } = {};
+        try {
+          data = await res.json();
+        } catch {
+          return { success: false, message: res.status === 500 ? 'Server error. Check Railway logs.' : 'Failed to create account' };
+        }
+        if (!res.ok || !data.success) {
           return { success: false, message: data.message || 'Failed to create account' };
         }
         setApiToken(data.token);
