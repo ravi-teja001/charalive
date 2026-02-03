@@ -31,3 +31,6 @@ dist-ssr
 # APK distribution (large binaries)
 APK_DISTRIBUTION/*.apk
 APK_DISTRIBUTION/*.zip
+
+# Bun (project uses npm)
+bun.lockb
