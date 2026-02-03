@@ -23,7 +23,8 @@ android {
             keyAlias 'biochar'
             keyPassword 'biochar2024'
             v1SigningEnabled true
-            v2SigningEnabled true
+            v2SigningEnabled false
+            // v1-only: fixes "problem parsing the package" on many devices; v2 can cause parse errors
         }
     }
     buildTypes {
@@ -31,6 +32,17 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
+        }
+    }
+    // Single universal APK (no ABI splits) - avoids parsing issues on some devices
+    splits {
+        abi {
+            enable false
+        }
+    }
+    packaging {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE', 'META-INF/NOTICE', 'META-INF/*.kotlin_module']
         }
     }
 }

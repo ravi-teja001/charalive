@@ -1,4 +1,10 @@
 {
+  "build": {
+    "env": {
+      "VITE_API_BASE_URL": "https://charalive-production.up.railway.app",
+      "VITE_USE_RAILWAY": "true"
+    }
+  },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
