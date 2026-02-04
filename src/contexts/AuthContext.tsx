@@ -198,6 +198,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           email: data.user.email,
           name: data.user.name,
           role: data.user.role,
+          plantId: data.user.plantId,
+          stockPointId: data.user.stockPointId,
         };
         setUser(basicUser);
         localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(basicUser));
@@ -346,6 +348,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           email: data.user.email,
           name: data.user.name,
           role: data.user.role,
+          plantId: data.user.plantId,
+          stockPointId: data.user.stockPointId,
         };
         setUser(basicUser);
         localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(basicUser));

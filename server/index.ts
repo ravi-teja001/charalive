@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import bcrypt from 'bcryptjs';
+import { hashPassword, verifyPassword } from './password.js';
 import { pool } from './db.js';
 import { authMiddleware, optionalAuth, createToken, verifyToken } from './auth.js';
 import type { JwtPayload } from './auth.js';
@@ -118,15 +118,17 @@ async function getUserRoles(userId: string): Promise<{ role: string; stock_point
 
 app.post('/api/auth/signup', async (req, res) => {
   try {
-    const { email, password, name, role } = req.body;
+    const { email, password, name, role, plantId: reqPlantId, stockPointId: reqStockPointId } = req.body;
     if (!email || !password || !name || !role) {
       res.status(400).json({ error: 'Email, password, name, and role are required' });
       return;
     }
+    const plantId = role === 'supervisor_plant' ? (reqPlantId || 'plant1') : null;
+    const stockPointId = (role === 'supervisor_stockpoint' || role === 'incharge') ? reqStockPointId || null : null;
     const { rows: existing } = await pool.query('SELECT id, email, name, password_hash FROM users WHERE email = $1', [email]);
     if (existing.length > 0) {
       const user = existing[0];
-      if (!(await bcrypt.compare(password, user.password_hash))) {
+      if (!(await verifyPassword(password, user.password_hash))) {
         res.status(400).json({ success: false, message: 'Email already registered. Please login with your password.' });
         return;
       }
@@ -143,21 +145,28 @@ app.post('/api/auth/signup', async (req, res) => {
       });
       return;
     }
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await hashPassword(password);
     const result = await pool.query(
-      `INSERT INTO users (email, name, password_hash, role)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO users (email, name, password_hash, role, stock_point_id, plant_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, email, name, role, stock_point_id, plant_id`,
-      [email, name, hash, role]
+      [email, name, hash, role, stockPointId, plantId]
     );
     const user = result.rows[0];
     await pool.query(`INSERT INTO user_roles (user_id, role, stock_point_id, plant_id) VALUES ($1, $2, $3, $4)`,
-      [user.id, role, user.stock_point_id, user.plant_id]);
+      [user.id, role, stockPointId, plantId]);
     const token = createToken({ userId: user.id, email: user.email, role: user.role });
     res.json({
       success: true,
       message: 'Account created and logged in successfully!',
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        stockPointId: user.stock_point_id || undefined,
+        plantId: user.plant_id || undefined,
+      },
       token,
     });
   } catch (e: any) {
@@ -198,17 +207,21 @@ app.post('/api/auth/login', async (req, res) => {
       return;
     }
     const { rows } = await pool.query(
-      'SELECT id, email, name, role, password_hash FROM users WHERE email = $1',
+      'SELECT id, email, name, role, password_hash, stock_point_id, plant_id FROM users WHERE email = $1',
       [email]
     );
     const user = rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    if (!user || !(await verifyPassword(password, user.password_hash))) {
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
     const roles = await getUserRoles(user.id);
     const roleStrings = roles.map((r: any) => r.role);
     const role = selectedRole && roleStrings.includes(selectedRole) ? selectedRole : roleStrings[0] || user.role;
+    const roleData = roles.find((r: any) => r.role === role);
+    let plantId = roleData?.plant_id ?? user.plant_id ?? null;
+    let stockPointId = roleData?.stock_point_id ?? user.stock_point_id ?? null;
+    if (role === 'supervisor_plant' && !plantId) plantId = 'plant1';
     const token = createToken({
       userId: user.id,
       email: user.email,
@@ -216,7 +229,15 @@ app.post('/api/auth/login', async (req, res) => {
     });
     res.json({
       success: true,
-      user: { id: user.id, email: user.email, name: user.name, role, roles: roleStrings },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role,
+        roles: roleStrings,
+        stockPointId: stockPointId || undefined,
+        plantId: plantId || undefined,
+      },
       token,
     });
   } catch (e: any) {
@@ -236,7 +257,22 @@ const authMeHandler = async (req: express.Request, res: express.Response) => {
     return;
   }
   const u = rows[0];
-  res.json({ user: { id: u.id, email: u.email, name: u.name, role: u.role } });
+  const roles = await getUserRoles(payload.userId);
+  const roleData = roles.find((r: any) => r.role === payload.role) || roles[0];
+  let plantId = roleData?.plant_id ?? u.plant_id ?? null;
+  let stockPointId = roleData?.stock_point_id ?? u.stock_point_id ?? null;
+  const role = payload.role || u.role;
+  if (role === 'supervisor_plant' && !plantId) plantId = 'plant1';
+  res.json({
+    user: {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      role,
+      stockPointId: stockPointId || undefined,
+      plantId: plantId || undefined,
+    },
+  });
 };
 app.get('/api/auth/me', authMiddleware, authMeHandler);
 app.post('/api/auth/me', authMiddleware, authMeHandler);
