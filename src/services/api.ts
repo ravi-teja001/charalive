@@ -1140,7 +1140,8 @@ export async function getRawBiomassProcurements(
   stockPointId?: string,
   fromDate?: Date,
   toDate?: Date,
-  userId?: string
+  userId?: string,
+  timeoutMs?: number
 ): Promise<RawBiomassProcurement[]> {
   console.log('🔍 Getting procurement records for user:', userId);
   if (useRailway) {
@@ -1148,7 +1149,7 @@ export async function getRawBiomassProcurements(
     if (stockPointId) params.set('stockPointId', stockPointId);
     if (fromDate) params.set('fromDate', fromDate.toISOString().split('T')[0]);
     if (toDate) params.set('toDate', toDate.toISOString().split('T')[0]);
-    const data = await apiFetch<any[]>(`/api/raw-biomass-procurement?${params}`);
+    const data = await apiFetch<any[]>(`/api/raw-biomass-procurement?${params}`, timeoutMs != null ? { timeoutMs } : {});
     return (data || []).map((item) => ({
       id: item.id,
       stockPointId: item.stockPointId || '',

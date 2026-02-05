@@ -3,13 +3,15 @@ import cors from 'cors';
 import { hashPassword, verifyPassword } from './password.js';
 import { pool } from './db.js';
 import { authMiddleware, optionalAuth, createToken, verifyToken } from './auth.js';
+import { runMigrationsAutomatically } from './migrate.js';
 import type { JwtPayload } from './auth.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: true }));
-app.use(express.json({ limit: '10mb' }));
+// 50mb for Raw Biomass Procurement with multiple base64 photos (vehicle, weight, moisture)
+app.use(express.json({ limit: '50mb' }));
 
 // Root - avoid "Cannot GET /" when visiting API URL directly
 app.get('/', (_, res) => res.json({ service: 'Biochar API', status: 'ok', docs: '/api/health' }));
@@ -247,57 +249,85 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 const authMeHandler = async (req: express.Request, res: express.Response) => {
-  const payload = (req as any).user as JwtPayload;
-  const { rows } = await pool.query(
-    'SELECT id, email, name, role, stock_point_id, plant_id FROM users WHERE id = $1',
-    [payload.userId]
-  );
-  if (!rows[0]) {
-    res.status(404).json({ error: 'User not found' });
-    return;
+  try {
+    const payload = (req as any).user as JwtPayload;
+    const { rows } = await pool.query(
+      'SELECT id, email, name, role, stock_point_id, plant_id FROM users WHERE id = $1',
+      [payload.userId]
+    );
+    if (!rows[0]) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    const u = rows[0];
+    const roles = await getUserRoles(payload.userId);
+    const roleData = roles.find((r: any) => r.role === payload.role) || roles[0];
+    let plantId = roleData?.plant_id ?? u.plant_id ?? null;
+    let stockPointId = roleData?.stock_point_id ?? u.stock_point_id ?? null;
+    const role = payload.role || u.role;
+    if (role === 'supervisor_plant' && !plantId) plantId = 'plant1';
+    res.json({
+      user: {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        role,
+        stockPointId: stockPointId || undefined,
+        plantId: plantId || undefined,
+      },
+    });
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Auth /me error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load user' });
+    }
   }
-  const u = rows[0];
-  const roles = await getUserRoles(payload.userId);
-  const roleData = roles.find((r: any) => r.role === payload.role) || roles[0];
-  let plantId = roleData?.plant_id ?? u.plant_id ?? null;
-  let stockPointId = roleData?.stock_point_id ?? u.stock_point_id ?? null;
-  const role = payload.role || u.role;
-  if (role === 'supervisor_plant' && !plantId) plantId = 'plant1';
-  res.json({
-    user: {
-      id: u.id,
-      email: u.email,
-      name: u.name,
-      role,
-      stockPointId: stockPointId || undefined,
-      plantId: plantId || undefined,
-    },
-  });
 };
 app.get('/api/auth/me', authMiddleware, authMeHandler);
 app.post('/api/auth/me', authMiddleware, authMeHandler);
 
 // ============ STOCK POINTS ============
 app.get('/api/stock-points', authMiddleware, async (_, res) => {
-  const { rows } = await pool.query('SELECT * FROM stock_points ORDER BY name');
-  res.json(rows);
+  try {
+    const { rows } = await pool.query('SELECT * FROM stock_points ORDER BY name');
+    res.json(rows);
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Stock points error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load stock points' });
+    }
+  }
 });
 
 // ============ PLANTS ============
 app.get('/api/plants', authMiddleware, async (_, res) => {
-  const { rows } = await pool.query('SELECT * FROM plants ORDER BY name');
-  res.json(rows);
+  try {
+    const { rows } = await pool.query('SELECT * FROM plants ORDER BY name');
+    res.json(rows);
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Plants error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load plants' });
+    }
+  }
 });
 
 // ============ VEHICLES ============
 app.get('/api/vehicles', authMiddleware, async (req, res) => {
-  const user = (req as any).user as JwtPayload;
-  const userId = user.userId;
-  const { rows } = await pool.query(
-    'SELECT * FROM vehicles WHERE created_by = $1 ORDER BY vehicle_number',
-    [userId]
-  );
-  res.json(rows.map(mapVehicle));
+  try {
+    const user = (req as any).user as JwtPayload;
+    const userId = user.userId;
+    const { rows } = await pool.query(
+      'SELECT * FROM vehicles WHERE created_by = $1 ORDER BY vehicle_number',
+      [userId]
+    );
+    res.json(rows.map(mapVehicle));
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Vehicles GET error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load vehicles' });
+    }
+  }
 });
 
 app.post('/api/vehicles', authMiddleware, async (req, res) => {
@@ -367,17 +397,24 @@ app.put('/api/vehicles/:id', authMiddleware, async (req, res) => {
 });
 
 app.delete('/api/vehicles/:id', authMiddleware, async (req, res) => {
-  const user = (req as any).user as JwtPayload;
-  const { id } = req.params;
-  const { rowCount } = await pool.query('DELETE FROM vehicles WHERE id = $1 AND created_by = $2', [
-    id,
-    user.userId,
-  ]);
-  if (rowCount === 0) {
-    res.status(404).json({ error: 'Vehicle not found' });
-    return;
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { id } = req.params;
+    const { rowCount } = await pool.query('DELETE FROM vehicles WHERE id = $1 AND created_by = $2', [
+      id,
+      user.userId,
+    ]);
+    if (rowCount === 0) {
+      res.status(404).json({ error: 'Vehicle not found' });
+      return;
+    }
+    res.status(204).send();
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Vehicles DELETE error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to delete vehicle' });
+    }
   }
-  res.status(204).send();
 });
 
 function mapVehicle(row: any) {
@@ -397,28 +434,56 @@ function mapVehicle(row: any) {
 
 // ============ RAW BIOMASS PROCUREMENT ============
 app.get('/api/raw-biomass-procurement', authMiddleware, async (req, res) => {
-  const user = (req as any).user as JwtPayload;
-  const { stockPointId, fromDate, toDate } = req.query;
-  let q = `SELECT * FROM raw_biomass_procurement
-           WHERE created_by = $1 OR created_by_email = $2`;
-  const params: any[] = [user.userId, user.email];
-  let idx = 3;
-  if (stockPointId) {
-    q += ` AND stock_point_id = $${idx++}`;
-    params.push(stockPointId);
-  }
-  if (fromDate) {
-    q += ` AND procurement_date >= $${idx++}`;
-    params.push(fromDate);
-  }
-  if (toDate) {
-    q += ` AND procurement_date <= $${idx++}`;
-    params.push(toDate);
-  }
-  q += ` ORDER BY procurement_date DESC`;
+  try {
+    const user = (req as any).user as JwtPayload;
+    if (!user?.userId) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+    const { stockPointId, fromDate, toDate } = req.query;
+    // Filter by user ID and optionally email (email may be missing on older tokens)
+    const hasEmail = user.email && String(user.email).trim().length > 0;
+    const qWhere = hasEmail
+      ? `WHERE (created_by = $1 OR created_by_email = $2)`
+      : `WHERE created_by = $1`;
+    let q = `SELECT * FROM raw_biomass_procurement ${qWhere}`;
+    const params: any[] = hasEmail ? [user.userId, user.email] : [user.userId];
+    let idx = params.length + 1;
+    if (stockPointId) {
+      q += ` AND stock_point_id = $${idx++}`;
+      params.push(stockPointId);
+    }
+    if (fromDate) {
+      q += ` AND procurement_date >= $${idx++}`;
+      params.push(fromDate);
+    }
+    if (toDate) {
+      q += ` AND procurement_date <= $${idx++}`;
+      params.push(toDate);
+    }
+    q += ` ORDER BY procurement_date DESC`;
 
-  const { rows } = await pool.query(q, params);
-  res.json(rows.map(mapProcurement));
+    const { rows } = await pool.query(q, params);
+    res.json(rows.map(mapProcurement));
+  } catch (e: any) {
+    if (res.headersSent) return;
+    console.error('GET /api/raw-biomass-procurement error:', e?.message || e);
+    const code = e?.code;
+    const msg = e?.message || 'Failed to load procurement records';
+    if (code === '42P01') {
+      res.status(500).json({ error: 'Database table missing. Run migrations with DATABASE_URL set.' });
+      return;
+    }
+    if (code === 'ECONNREFUSED' || msg?.includes('connect') || msg?.includes('ECONNREFUSED')) {
+      res.status(503).json({ error: 'Database unavailable. Please try again later.' });
+      return;
+    }
+    if (code === '42703') {
+      res.status(500).json({ error: 'Database column missing. Run migrations (e.g. created_by_email).' });
+      return;
+    }
+    res.status(500).json({ error: msg });
+  }
 });
 
 app.post('/api/raw-biomass-procurement', authMiddleware, async (req, res) => {
@@ -549,34 +614,74 @@ const expenseTypeRev: Record<string, string> = {
 const paymentModeRev: Record<string, string> = { Cash: 'cash', UPI: 'upi' };
 
 app.get('/api/expenses', authMiddleware, async (req, res) => {
-  const { stockPointId, fromDate, toDate, expenseType, inchargeId } = req.query;
-  let q = 'SELECT * FROM expenses WHERE 1=1';
-  const params: any[] = [];
-  let idx = 1;
-  if (stockPointId) {
-    q += ` AND stock_point_id = $${idx++}`;
-    params.push(stockPointId);
+  try {
+    const { stockPointId, fromDate, toDate, expenseType, inchargeId } = req.query;
+    let q = 'SELECT * FROM expenses WHERE 1=1';
+    const params: any[] = [];
+    let idx = 1;
+    if (stockPointId) {
+      q += ` AND stock_point_id = $${idx++}`;
+      params.push(stockPointId);
+    }
+    if (inchargeId) {
+      q += ` AND incharge_id = $${idx++}`;
+      params.push(inchargeId);
+    }
+    if (expenseType) {
+      q += ` AND expense_type = $${idx++}`;
+      params.push(expenseTypeMap[expenseType as string] || expenseType);
+    }
+    if (fromDate) {
+      q += ` AND expense_date >= $${idx++}`;
+      params.push(fromDate);
+    }
+    if (toDate) {
+      q += ` AND expense_date <= $${idx++}`;
+      params.push(toDate);
+    }
+    q += ' ORDER BY expense_date DESC';
+    const { rows } = await pool.query(q, params);
+    res.json(
+      rows.map((r: any) => ({
+        id: r.id,
+        stockPointId: r.stock_point_id,
+        date: r.expense_date,
+        amount: parseFloat(r.expense_amount),
+        type: expenseTypeRev[r.expense_type] || r.expense_type,
+        paymentMode: paymentModeRev[r.payment_mode] || r.payment_mode,
+        receiptUrl: r.receipt_url || '',
+        createdBy: r.incharge_id,
+        createdAt: r.created_at,
+      }))
+    );
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Expenses GET error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load expenses' });
+    }
   }
-  if (inchargeId) {
-    q += ` AND incharge_id = $${idx++}`;
-    params.push(inchargeId);
-  }
-  if (expenseType) {
-    q += ` AND expense_type = $${idx++}`;
-    params.push(expenseTypeMap[expenseType as string] || expenseType);
-  }
-  if (fromDate) {
-    q += ` AND expense_date >= $${idx++}`;
-    params.push(fromDate);
-  }
-  if (toDate) {
-    q += ` AND expense_date <= $${idx++}`;
-    params.push(toDate);
-  }
-  q += ' ORDER BY expense_date DESC';
-  const { rows } = await pool.query(q, params);
-  res.json(
-    rows.map((r: any) => ({
+});
+
+app.post('/api/expenses', authMiddleware, async (req, res) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const { stockPointId, date, amount, type, paymentMode, receiptUrl } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO expenses (stock_point_id, expense_date, expense_amount, expense_type, payment_mode, receipt_url, incharge_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        stockPointId,
+        date?.split?.('T')[0] ?? date,
+        amount,
+        expenseTypeMap[type] || type,
+        paymentModeMap[paymentMode] || paymentMode,
+        receiptUrl || null,
+        user.userId,
+      ]
+    );
+    const r = rows[0];
+    res.json({
       id: r.id,
       stockPointId: r.stock_point_id,
       date: r.expense_date,
@@ -586,54 +691,80 @@ app.get('/api/expenses', authMiddleware, async (req, res) => {
       receiptUrl: r.receipt_url || '',
       createdBy: r.incharge_id,
       createdAt: r.created_at,
-    }))
-  );
-});
-
-app.post('/api/expenses', authMiddleware, async (req, res) => {
-  const user = (req as any).user as JwtPayload;
-  const { stockPointId, date, amount, type, paymentMode, receiptUrl } = req.body;
-  const { rows } = await pool.query(
-    `INSERT INTO expenses (stock_point_id, expense_date, expense_amount, expense_type, payment_mode, receipt_url, incharge_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
-     RETURNING *`,
-    [
-      stockPointId,
-      date?.split?.('T')[0] ?? date,
-      amount,
-      expenseTypeMap[type] || type,
-      paymentModeMap[paymentMode] || paymentMode,
-      receiptUrl || null,
-      user.userId,
-    ]
-  );
-  const r = rows[0];
-  res.json({
-    id: r.id,
-    stockPointId: r.stock_point_id,
-    date: r.expense_date,
-    amount: parseFloat(r.expense_amount),
-    type: expenseTypeRev[r.expense_type] || r.expense_type,
-    paymentMode: paymentModeRev[r.payment_mode] || r.payment_mode,
-    receiptUrl: r.receipt_url || '',
-    createdBy: r.incharge_id,
-    createdAt: r.created_at,
-  });
+    });
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Expenses POST error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to create expense' });
+    }
+  }
 });
 
 // ============ PROCESSED BIOMASS ============
 app.get('/api/processed-biomass-procurement', authMiddleware, async (req, res) => {
-  const { plantId } = req.query;
-  let q = 'SELECT * FROM processed_biomass_procurement WHERE 1=1';
-  const params: any[] = [];
-  if (plantId) {
-    q += ' AND plant_id = $1';
-    params.push(plantId);
+  try {
+    const { plantId } = req.query;
+    let q = 'SELECT * FROM processed_biomass_procurement WHERE 1=1';
+    const params: any[] = [];
+    if (plantId) {
+      q += ' AND plant_id = $1';
+      params.push(plantId);
+    }
+    q += ' ORDER BY procurement_date DESC';
+    const { rows } = await pool.query(q, params);
+    res.json(
+      rows.map((r: any) => ({
+        id: r.id,
+        plantId: r.plant_id,
+        sourceStockPointId: r.source_stock_point_id,
+        vehicleNumber: r.vehicle_number,
+        vehicleWeight: r.vehicle_weight,
+        vehiclePhoto: r.vehicle_photo,
+        grossWeight: r.gross_weight,
+        weightRecordPhoto: r.weight_record_photo,
+        netWeight: r.net_weight,
+        procurementDate: r.procurement_date,
+        createdBy: r.created_by,
+      }))
+    );
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Processed biomass GET error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load processed biomass' });
+    }
   }
-  q += ' ORDER BY procurement_date DESC';
-  const { rows } = await pool.query(q, params);
-  res.json(
-    rows.map((r: any) => ({
+});
+
+app.post('/api/processed-biomass-procurement', authMiddleware, async (req, res) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const b = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO processed_biomass_procurement (
+        plant_id, source_stock_point_id, vehicle_number, vehicle_weight, vehicle_photo,
+        vehicle_photo_latitude, vehicle_photo_longitude, gross_weight, weight_record_photo,
+        weight_photo_latitude, weight_photo_longitude, net_weight, procurement_date, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *`,
+      [
+        b.plantId,
+        b.sourceStockPointId,
+        b.vehicleNumber,
+        b.vehicleWeight ?? 0,
+        b.vehiclePhoto || null,
+        b.vehiclePhotoLatitude ?? null,
+        b.vehiclePhotoLongitude ?? null,
+        b.grossWeight ?? 0,
+        b.weightRecordPhoto || null,
+        b.weightPhotoLatitude ?? null,
+        b.weightPhotoLongitude ?? null,
+        b.netWeight ?? 0,
+        b.procurementDate?.split?.('T')[0] ?? b.procurementDate,
+        user.userId,
+      ]
+    );
+    const r = rows[0];
+    res.json({
       id: r.id,
       plantId: r.plant_id,
       sourceStockPointId: r.source_stock_point_id,
@@ -645,66 +776,80 @@ app.get('/api/processed-biomass-procurement', authMiddleware, async (req, res) =
       netWeight: r.net_weight,
       procurementDate: r.procurement_date,
       createdBy: r.created_by,
-    }))
-  );
-});
-
-app.post('/api/processed-biomass-procurement', authMiddleware, async (req, res) => {
-  const user = (req as any).user as JwtPayload;
-  const b = req.body;
-  const { rows } = await pool.query(
-    `INSERT INTO processed_biomass_procurement (
-      plant_id, source_stock_point_id, vehicle_number, vehicle_weight, vehicle_photo,
-      vehicle_photo_latitude, vehicle_photo_longitude, gross_weight, weight_record_photo,
-      weight_photo_latitude, weight_photo_longitude, net_weight, procurement_date, created_by
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-    RETURNING *`,
-    [
-      b.plantId,
-      b.sourceStockPointId,
-      b.vehicleNumber,
-      b.vehicleWeight ?? 0,
-      b.vehiclePhoto || null,
-      b.vehiclePhotoLatitude ?? null,
-      b.vehiclePhotoLongitude ?? null,
-      b.grossWeight ?? 0,
-      b.weightRecordPhoto || null,
-      b.weightPhotoLatitude ?? null,
-      b.weightPhotoLongitude ?? null,
-      b.netWeight ?? 0,
-      b.procurementDate?.split?.('T')[0] ?? b.procurementDate,
-      user.userId,
-    ]
-  );
-  const r = rows[0];
-  res.json({
-    id: r.id,
-    plantId: r.plant_id,
-    sourceStockPointId: r.source_stock_point_id,
-    vehicleNumber: r.vehicle_number,
-    vehicleWeight: r.vehicle_weight,
-    vehiclePhoto: r.vehicle_photo,
-    grossWeight: r.gross_weight,
-    weightRecordPhoto: r.weight_record_photo,
-    netWeight: r.net_weight,
-    procurementDate: r.procurement_date,
-    createdBy: r.created_by,
-  });
+    });
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Processed biomass POST error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to create processed biomass' });
+    }
+  }
 });
 
 // ============ BIOCHAR DEPLOYMENT ============
 app.get('/api/biochar-deployment', authMiddleware, async (req, res) => {
-  const { plantId } = req.query;
-  let q = 'SELECT * FROM biochar_deployment WHERE 1=1';
-  const params: any[] = [];
-  if (plantId) {
-    q += ' AND plant_id = $1';
-    params.push(plantId);
+  try {
+    const { plantId } = req.query;
+    let q = 'SELECT * FROM biochar_deployment WHERE 1=1';
+    const params: any[] = [];
+    if (plantId) {
+      q += ' AND plant_id = $1';
+      params.push(plantId);
+    }
+    q += ' ORDER BY created_at DESC';
+    const { rows } = await pool.query(q, params);
+    res.json(
+      rows.map((r: any) => ({
+        id: r.id,
+        plantId: r.plant_id,
+        farmerName: r.farmer_name,
+        mobileNumber: r.mobile_number,
+        aadhaarNumber: r.aadhaar_number,
+        village: r.village,
+        mandal: r.mandal,
+        district: r.district,
+        landArea: r.land_area,
+        biocharWeight: r.biochar_weight,
+        numberOfBags: r.number_of_bags,
+        kmlData: r.kml_data,
+        createdBy: r.created_by,
+        createdAt: r.created_at,
+      }))
+    );
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Biochar deployment GET error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load biochar deployments' });
+    }
   }
-  q += ' ORDER BY created_at DESC';
-  const { rows } = await pool.query(q, params);
-  res.json(
-    rows.map((r: any) => ({
+});
+
+app.post('/api/biochar-deployment', authMiddleware, async (req, res) => {
+  try {
+    const user = (req as any).user as JwtPayload;
+    const b = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO biochar_deployment (
+        plant_id, farmer_name, mobile_number, aadhaar_number, village, mandal, district,
+        land_area, biochar_weight, number_of_bags, kml_data, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *`,
+      [
+        b.plantId,
+        b.farmerName,
+        b.mobileNumber,
+        b.aadhaarNumber,
+        b.village,
+        b.mandal,
+        b.district,
+        b.landArea,
+        b.biocharWeight,
+        b.numberOfBags,
+        b.kmlData || null,
+        user.userId,
+      ]
+    );
+    const r = rows[0];
+    res.json({
       id: r.id,
       plantId: r.plant_id,
       farmerName: r.farmer_name,
@@ -719,54 +864,24 @@ app.get('/api/biochar-deployment', authMiddleware, async (req, res) => {
       kmlData: r.kml_data,
       createdBy: r.created_by,
       createdAt: r.created_at,
-    }))
-  );
+    });
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Biochar deployment POST error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to create biochar deployment' });
+    }
+  }
 });
 
-app.post('/api/biochar-deployment', authMiddleware, async (req, res) => {
-  const user = (req as any).user as JwtPayload;
-  const b = req.body;
-  const { rows } = await pool.query(
-    `INSERT INTO biochar_deployment (
-      plant_id, farmer_name, mobile_number, aadhaar_number, village, mandal, district,
-      land_area, biochar_weight, number_of_bags, kml_data, created_by
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-    RETURNING *`,
-    [
-      b.plantId,
-      b.farmerName,
-      b.mobileNumber,
-      b.aadhaarNumber,
-      b.village,
-      b.mandal,
-      b.district,
-      b.landArea,
-      b.biocharWeight,
-      b.numberOfBags,
-      b.kmlData || null,
-      user.userId,
-    ]
-  );
-  const r = rows[0];
-  res.json({
-    id: r.id,
-    plantId: r.plant_id,
-    farmerName: r.farmer_name,
-    mobileNumber: r.mobile_number,
-    aadhaarNumber: r.aadhaar_number,
-    village: r.village,
-    mandal: r.mandal,
-    district: r.district,
-    landArea: r.land_area,
-    biocharWeight: r.biochar_weight,
-    numberOfBags: r.number_of_bags,
-    kmlData: r.kml_data,
-    createdBy: r.created_by,
-    createdAt: r.created_at,
-  });
+// Global error handler: ensure all errors return JSON (no HTML 500)
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (res.headersSent) return;
+  const msg = err?.message || String(err);
+  console.error('Unhandled error:', msg);
+  res.status(500).json({ error: msg || 'Internal Server Error' });
 });
 
-// Start server and verify DB connection
+// Start server, verify DB connection, and run migrations automatically
 app.listen(PORT, async () => {
   console.log(`🚀 Biochar API server running on port ${PORT}`);
   const hasDb = !!process.env.DATABASE_URL || !!process.env.PG_CONNECTION_STRING;
@@ -776,6 +891,7 @@ app.listen(PORT, async () => {
     try {
       await pool.query('SELECT 1');
       console.log('✅ Database connected (Railway Postgres)');
+      await runMigrationsAutomatically(pool);
     } catch (e: any) {
       console.error('❌ Database connection failed:', e?.message || e);
     }

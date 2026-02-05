@@ -42,6 +42,42 @@ import { PhotoCapture } from '@/components/shared/PhotoCapture';
 import Tesseract from 'tesseract.js';
 import EXIF from 'exif-js';
 
+/** Compress image data URL to reduce payload size and avoid 413. Max width 800px, JPEG 0.75. */
+function compressImageDataUrl(dataUrl: string, maxWidth = 800, quality = 0.75): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!dataUrl || !dataUrl.startsWith('data:image')) {
+      resolve(dataUrl);
+      return;
+    }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        const scale = w > maxWidth ? maxWidth / w : 1;
+        const cw = Math.round(w * scale);
+        const ch = Math.round(h * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = cw;
+        canvas.height = ch;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, cw, ch);
+        const out = canvas.toDataURL('image/jpeg', quality);
+        resolve(out);
+      } catch (e) {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 export default function RawBiomassProcurement() {
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -709,19 +745,36 @@ export default function RawBiomassProcurement() {
       finalLatitude = Number(latitude);
       finalLongitude = Number(longitude);
     }
-    
-    // Fast data creation
-    const vehiclePhotosArray = vehiclePhotos.filter(photo => photo != null) as string[];
-    const vehiclePhotoJson = vehiclePhotosArray.length > 0 ? JSON.stringify(vehiclePhotosArray) : null;
+
+    // Compress photos to avoid 413 Payload Too Large (proxy/server limits)
+    setLoading(true);
+    let compressedVehiclePhotos: string[] = [];
+    let compressedWeightPhoto = weightPhoto;
+    let compressedMoisturePhoto: string | null = moisturePhoto;
+    try {
+      const vehiclePhotosArray = vehiclePhotos.filter(photo => photo != null) as string[];
+      compressedVehiclePhotos = await Promise.all(
+        vehiclePhotosArray.map((p) => compressImageDataUrl(p))
+      );
+      compressedWeightPhoto = await compressImageDataUrl(weightPhoto);
+      if (moisturePhoto) compressedMoisturePhoto = await compressImageDataUrl(moisturePhoto);
+    } catch (e) {
+      console.warn('Photo compression failed, using originals:', e);
+      compressedVehiclePhotos = vehiclePhotos.filter((photo): photo is string => photo != null);
+      compressedMoisturePhoto = moisturePhoto;
+    }
+
+    // Fast data creation (use compressed photos)
+    const vehiclePhotoJson = compressedVehiclePhotos.length > 0 ? JSON.stringify(compressedVehiclePhotos) : null;
     
     const procurementData: any = {
       stockPointId: stockPointIdToUse,
       source: source as 'cotton_stalks' | 'chilli_stalks',
       vehicleNumber: vehicleType === 'own' ? ownVehicleNumber : selectedVehicle?.vehicleNumber || '',
       vehicleWeight,
-      vehiclePhoto: vehiclePhotoJson || (vehiclePhotosArray[0] || ''),
+      vehiclePhoto: vehiclePhotoJson || (compressedVehiclePhotos[0] || ''),
       grossWeight: parseFloat(netWeightInput) + parseFloat(vehicleWeight.toString()),
-      weightRecordPhoto: weightPhoto,
+      weightRecordPhoto: compressedWeightPhoto,
       netWeight: parseFloat(netWeightInput),
       procurementDate: new Date(),
       createdBy: user?.id || undefined,
@@ -735,9 +788,9 @@ export default function RawBiomassProcurement() {
       vehicleType: vehicleType || undefined,
     };
     
-    // Add moisture if required
+    // Add moisture if required (use compressed photo)
     if (moistureRequired) {
-      procurementData.moisturePhoto = moisturePhoto;
+      procurementData.moisturePhoto = compressedMoisturePhoto;
       procurementData.moisturePercentage = parseFloat(moisturePercentage);
     }
 
@@ -842,6 +895,8 @@ export default function RawBiomassProcurement() {
         swal.error('Authentication Error: Please log in again');
       } else if (error?.message?.includes('created_by')) {
         swal.error('Database Error: created_by field issue - please try again');
+      } else if (error?.message?.includes('413') || error?.message?.includes('Payload') || error?.message?.includes('Too large')) {
+        swal.error('Save failed: Photos are too large. Try fewer photos or lower quality, then save again.');
       } else {
         swal.error(`Save failed: ${error?.message || 'Unknown error'}\n\nDetails: ${JSON.stringify(error)}`);
       }

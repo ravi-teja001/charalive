@@ -114,8 +114,8 @@ export default function Dashboard() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      // Load records - filter by user email (stockPointId is optional)
-      const data = await getRawBiomassProcurements(user.stockPointId || undefined, undefined, undefined, user.email);
+      // Load records - filter by user email (stockPointId is optional). 20s timeout so loading doesn't hang (e.g. Railway cold start).
+      const data = await getRawBiomassProcurements(user.stockPointId || undefined, undefined, undefined, user.email, 20000);
       console.log('✅ Loaded', data.length, 'procurement records');
       console.log('📋 Record IDs:', data.map(r => r.id));
       
@@ -185,9 +185,17 @@ export default function Dashboard() {
       } else if (error?.message?.includes('JWT') || error?.message?.includes('token')) {
         console.warn('⚠️ Authentication error detected');
         swal.error('Authentication error: Please log in again.');
+      } else if (error?.message?.includes('timed out')) {
+        swal.error('Loading records timed out. The server may be starting — tap Refresh to try again.');
       } else {
-        console.warn('⚠️ General API error');
-        swal.error(`Failed to load records: ${error?.message || 'Unknown error'}`);
+        const msg = error?.message || 'Unknown error';
+        const isGeneric = msg === 'Internal Server Error' || msg.includes('API error 500');
+        console.warn('⚠️ General API error:', msg);
+        swal.error(
+          isGeneric
+            ? 'Failed to load records: Server error. Please try again or contact support.'
+            : `Failed to load records: ${msg}`
+        );
       }
       
       // Set empty records to prevent infinite loading
