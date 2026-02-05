@@ -680,8 +680,8 @@ export default function RawBiomassProcurement() {
       console.log('🔧 Auto-fixed: Set default moisture percentage to 15%');
     }
     
-    // 3. Re-check validation after auto-fixes
-    const finalVillage = village || subDistrict;
+    // 3. Re-check validation after auto-fixes (use actualVillage - that's what the input binds to)
+    const finalVillage = actualVillage?.trim() || village || subDistrict;
     const finalMoistureValid = !moistureRequired || (moisturePhoto && (moisturePercentage || '15'));
     
     console.log('� DEBUG: Form validation check:', {
@@ -784,7 +784,7 @@ export default function RawBiomassProcurement() {
       name: name.trim() || undefined,
       state: state || undefined,
       district: district || undefined,
-      village: village || undefined,
+      village: (actualVillage?.trim() || village || subDistrict) || undefined,
       vehicleType: vehicleType || undefined,
     };
     
