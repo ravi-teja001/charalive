@@ -32,5 +32,7 @@ dist-ssr
 APK_DISTRIBUTION/*.apk
 APK_DISTRIBUTION/*.zip
 
-# Bun (project uses npm)
+# Bun (build uses nixpacks.toml: bun install without --frozen-lockfile)
 bun.lockb
+bun.lock
+.bun-install

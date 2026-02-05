@@ -1,0 +1,4 @@
+# Override install so bun doesn't require a frozen lockfile (bun.lockb is gitignored; project uses npm locally).
+# Without this, "bun install --frozen-lockfile" fails when lockfile is missing or out of sync.
+[phases.install]
+cmds = ["bun install"]
