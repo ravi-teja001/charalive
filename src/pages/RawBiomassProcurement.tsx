@@ -784,7 +784,7 @@ export default function RawBiomassProcurement() {
       name: name.trim() || undefined,
       state: state || undefined,
       district: district || undefined,
-      village: (actualVillage?.trim() || village || subDistrict) || undefined,
+      village: (actualVillage?.trim() || village || subDistrict) || null,
       vehicleType: vehicleType || undefined,
     };
     
