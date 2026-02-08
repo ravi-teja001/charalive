@@ -293,10 +293,12 @@ const authMeHandler = async (req: express.Request, res: express.Response) => {
     }
     const u = rows[0];
     const roles = await getUserRoles(payload.userId);
-    const roleData = roles.find((r: any) => r.role === payload.role) || roles[0];
+    const roleStrings = roles.map((r: any) => r.role);
+    // Use role from DB (not JWT) so promoted admins get correct role without re-login
+    const role = (roleStrings.includes(payload.role) ? payload.role : null) || roleStrings[0] || u.role;
+    const roleData = roles.find((r: any) => r.role === role) || roles[0];
     let plantId = roleData?.plant_id ?? u.plant_id ?? null;
     let stockPointId = roleData?.stock_point_id ?? u.stock_point_id ?? null;
-    const role = payload.role || u.role;
     if (role === 'supervisor_plant' && !plantId) plantId = 'plant1';
     res.json({
       user: {
