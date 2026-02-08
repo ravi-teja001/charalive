@@ -56,11 +56,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         if (useRailway) {
           const token = localStorage.getItem('railway_token');
           if (token) {
+            let timeoutId: ReturnType<typeof setTimeout> | undefined;
             try {
               const url = `${environment.apiBaseUrl}/api/auth/me`;
+              const controller = new AbortController();
+              timeoutId = setTimeout(() => controller.abort(), 8000);
               const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
+                signal: controller.signal,
               });
+              if (timeoutId) clearTimeout(timeoutId);
               if (res.ok) {
                 const data = await res.json();
                 const u = data.user as User;
@@ -87,6 +92,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 }
               }
             } catch (err) {
+              if (timeoutId) clearTimeout(timeoutId);
               const cached = localStorage.getItem(RAILWAY_USER_KEY);
               if (cached) {
                 try {
