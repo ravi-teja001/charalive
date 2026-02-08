@@ -7,6 +7,19 @@ import { User, UserRole } from '@/types/biochar';
 const useRailway = environment.useRailway;
 const RAILWAY_USER_KEY = 'railway_user';
 
+/** Normalize user from API - ensure role is lowercase for consistent checks (e.g. user?.role === 'admin') */
+function normalizeUserFromApi(u: User | Record<string, unknown>): User {
+  const role = (u.role || (u as { roles?: string[] }).roles?.[0] || '').toString().toLowerCase();
+  return {
+    id: u.id as string,
+    email: (u.email as string) || '',
+    name: (u.name as string) || '',
+    role: role as UserRole,
+    stockPointId: u.stockPointId as string | undefined,
+    plantId: u.plantId as string | undefined,
+  };
+}
+
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
@@ -51,8 +64,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               if (res.ok) {
                 const data = await res.json();
                 const u = data.user as User;
-                setUser(u);
-                localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(u));
+                const normalized = normalizeUserFromApi(u);
+                setUser(normalized);
+                localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(normalized));
                 console.log('✅ User set from Railway token:', u);
               } else if (res.status === 401) {
                 localStorage.removeItem('railway_token');
@@ -63,7 +77,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 const cached = localStorage.getItem(RAILWAY_USER_KEY);
                 if (cached) {
                   try {
-                    setUser(JSON.parse(cached) as User);
+                    setUser(normalizeUserFromApi(JSON.parse(cached) as User));
                     console.log('✅ Restored user from cache (API error)');
                   } catch {
                     setUser(null);
@@ -76,7 +90,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               const cached = localStorage.getItem(RAILWAY_USER_KEY);
               if (cached) {
                 try {
-                  setUser(JSON.parse(cached) as User);
+                  setUser(normalizeUserFromApi(JSON.parse(cached) as User));
                   console.log('✅ Restored user from cache (network error)');
                 } catch {
                   setUser(null);
@@ -193,14 +207,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return { needsRoleSelection: true, roles: data.user.roles };
         }
         setApiToken(data.token);
-        const basicUser: User = {
+        const basicUser = normalizeUserFromApi({
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
-          role: data.user.role,
+          role: data.user.role ?? data.user.roles?.[0],
           plantId: data.user.plantId,
           stockPointId: data.user.stockPointId,
-        };
+        } as User);
         setUser(basicUser);
         localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(basicUser));
         return true;
@@ -347,14 +361,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return { success: false, message: data.message || 'Failed to create account' };
         }
         setApiToken(data.token);
-        const basicUser: User = {
+        const basicUser = normalizeUserFromApi({
           id: data.user.id,
           email: data.user.email,
           name: data.user.name,
-          role: data.user.role,
+          role: data.user.role ?? data.user.roles?.[0],
           plantId: data.user.plantId,
           stockPointId: data.user.stockPointId,
-        };
+        } as User);
         setUser(basicUser);
         localStorage.setItem(RAILWAY_USER_KEY, JSON.stringify(basicUser));
         return { success: true, message: data.message || 'Account created and logged in successfully!' };
