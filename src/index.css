@@ -115,6 +115,9 @@
     --sidebar-accent-foreground: 40 20% 97%;
     --sidebar-border: 150 20% 18%;
     --sidebar-ring: 38 92% 50%;
+
+    /* Dark mode gradients */
+    --gradient-card: linear-gradient(180deg, hsl(150 25% 12%) 0%, hsl(150 30% 10%) 100%);
   }
 }
 

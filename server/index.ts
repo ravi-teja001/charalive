@@ -107,6 +107,20 @@ app.get('/api/dashboard-stats', authMiddleware, async (req, res) => {
 });
 
 // ============ AUTH ============
+const MAX_ADMIN_USERS = 5;
+
+// Helper: count distinct users with admin role
+async function getAdminUserCount(): Promise<number> {
+  const { rows } = await pool.query(`
+    SELECT COUNT(DISTINCT uid)::int as count FROM (
+      SELECT id as uid FROM users WHERE role = 'admin'
+      UNION
+      SELECT user_id as uid FROM user_roles WHERE role = 'admin'
+    ) sub
+  `);
+  return rows[0]?.count ?? 0;
+}
+
 // Helper: get user's roles (from user_roles if exists, else fallback to users.role)
 async function getUserRoles(userId: string): Promise<{ role: string; stock_point_id?: string; plant_id?: string }[]> {
   const { rows } = await pool.query(
@@ -134,6 +148,17 @@ app.post('/api/auth/signup', async (req, res) => {
         res.status(400).json({ success: false, message: 'Email already registered. Please login with your password.' });
         return;
       }
+      if (role === 'admin') {
+        const roles = await getUserRoles(user.id);
+        const hasAdmin = roles.some((r: { role: string }) => r.role === 'admin');
+        if (!hasAdmin) {
+          const adminCount = await getAdminUserCount();
+          if (adminCount >= MAX_ADMIN_USERS) {
+            res.status(400).json({ success: false, message: `Only ${MAX_ADMIN_USERS} admin users are allowed. Maximum reached.` });
+            return;
+          }
+        }
+      }
       await pool.query(
         `INSERT INTO user_roles (user_id, role) VALUES ($1, $2) ON CONFLICT (user_id, role) DO NOTHING`,
         [user.id, role]
@@ -146,6 +171,13 @@ app.post('/api/auth/signup', async (req, res) => {
         token,
       });
       return;
+    }
+    if (role === 'admin') {
+      const adminCount = await getAdminUserCount();
+      if (adminCount >= MAX_ADMIN_USERS) {
+        res.status(400).json({ success: false, message: `Only ${MAX_ADMIN_USERS} admin users are allowed. Maximum reached.` });
+        return;
+      }
     }
     const hash = await hashPassword(password);
     const result = await pool.query(
@@ -181,7 +213,7 @@ app.post('/api/auth/signup', async (req, res) => {
       return;
     }
     if (e?.code === '23514') {
-      res.status(400).json({ success: false, message: 'Invalid role. Use: supervisor_stockpoint, incharge, or supervisor_plant.' });
+      res.status(400).json({ success: false, message: 'Invalid role. Use: admin, supervisor_stockpoint, incharge, or supervisor_plant.' });
       return;
     }
     if (e?.code === '42P01') {
@@ -285,6 +317,358 @@ const authMeHandler = async (req: express.Request, res: express.Response) => {
 };
 app.get('/api/auth/me', authMiddleware, authMeHandler);
 app.post('/api/auth/me', authMiddleware, authMeHandler);
+
+// Admin middleware: requires auth + role === 'admin'
+const adminMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  authMiddleware(req, res, () => {
+    const user = (req as any).user as JwtPayload;
+    if (user.role !== 'admin') {
+      res.status(403).json({ error: 'Admin access required' });
+      return;
+    }
+    next();
+  });
+};
+
+// ============ ADMIN ============
+app.get('/api/admin/users', adminMiddleware, async (_, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.id, u.email, u.name,
+         COALESCE(ur.role, u.role) as role,
+         COALESCE(ur.stock_point_id, u.stock_point_id) as stock_point_id,
+         COALESCE(ur.plant_id, u.plant_id) as plant_id,
+         u.created_at
+       FROM users u
+       LEFT JOIN LATERAL (
+         SELECT role, stock_point_id, plant_id FROM user_roles WHERE user_id = u.id LIMIT 1
+       ) ur ON true
+       ORDER BY u.created_at DESC`
+    );
+    res.json(rows);
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin users error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load users' });
+    }
+  }
+});
+
+// Admin: update user
+app.put('/api/admin/users/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminUser = (req as any).user as JwtPayload;
+    if (id === adminUser.userId) {
+      res.status(400).json({ error: 'Cannot edit your own account here. Use profile settings.' });
+      return;
+    }
+    const { name, role, stock_point_id, plant_id } = req.body;
+    const validRoles = ['admin', 'supervisor_stockpoint', 'incharge', 'supervisor_plant'];
+    const newRole = role && validRoles.includes(String(role).toLowerCase()) ? String(role).toLowerCase() : null;
+    if (newRole === 'admin') {
+      const roles = await getUserRoles(id);
+      const alreadyAdmin = roles.some((r: { role: string }) => r.role === 'admin');
+      if (!alreadyAdmin) {
+        const adminCount = await getAdminUserCount();
+        if (adminCount >= MAX_ADMIN_USERS) {
+          res.status(400).json({ error: `Only ${MAX_ADMIN_USERS} admin users are allowed. Maximum reached.` });
+          return;
+        }
+      }
+    }
+    const updates: string[] = [];
+    const params: unknown[] = [];
+    let idx = 1;
+    if (name != null) {
+      updates.push(`name = $${idx++}`);
+      params.push(String(name).trim());
+    }
+    if (newRole != null) {
+      updates.push(`role = $${idx++}`);
+      params.push(newRole);
+    }
+    if (stock_point_id !== undefined) {
+      updates.push(`stock_point_id = $${idx++}`);
+      params.push(stock_point_id === '' || stock_point_id == null ? null : String(stock_point_id));
+    }
+    if (plant_id !== undefined) {
+      updates.push(`plant_id = $${idx++}`);
+      params.push(plant_id === '' || plant_id == null ? null : String(plant_id));
+    }
+    if (updates.length === 0) {
+      res.status(400).json({ error: 'No valid fields to update' });
+      return;
+    }
+    params.push(id);
+    const { rows } = await pool.query(
+      `UPDATE users SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${idx} RETURNING id, email, name, role, stock_point_id, plant_id, created_at`,
+      params
+    );
+    if (rows.length === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    // Update user_roles if exists
+    await pool.query(`UPDATE user_roles SET role = $1, stock_point_id = $2, plant_id = $3 WHERE user_id = $4`, [
+      rows[0].role,
+      rows[0].stock_point_id,
+      rows[0].plant_id,
+      id,
+    ]);
+    res.json(rows[0]);
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin user update error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to update user' });
+    }
+  }
+});
+
+// Admin: delete user
+app.delete('/api/admin/users/:id', adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminUser = (req as any).user as JwtPayload;
+    if (id === adminUser.userId) {
+      res.status(400).json({ error: 'Cannot delete your own account' });
+      return;
+    }
+    // Delete from user_roles first (if exists)
+    await pool.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
+    const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    if (rowCount === 0) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.status(204).send();
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin user delete error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to delete user' });
+    }
+  }
+});
+
+app.get('/api/admin/stats', adminMiddleware, async (_, res) => {
+  try {
+    // Total trips and net weight across all records (all-time) — Admin "Total Trips" / "Net Weight Collected"
+    const { rows: rawRows } = await pool.query(
+      `SELECT COUNT(*) as trips, COALESCE(SUM(net_weight), 0) as net_weight
+       FROM raw_biomass_procurement`
+    );
+    const { rows: procRows } = await pool.query(
+      `SELECT COALESCE(SUM(net_weight), 0) as processed
+       FROM processed_biomass_procurement
+       WHERE procurement_date::date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date`
+    );
+    const { rows: biocharRows } = await pool.query(
+      `SELECT COUNT(*) as farmers, COALESCE(SUM(biochar_weight), 0) as biochar, COALESCE(SUM(land_area), 0) as land
+       FROM biochar_deployment
+       WHERE (created_at AT TIME ZONE 'Asia/Kolkata')::date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date`
+    );
+    res.json({
+      totalTripsToday: parseInt(rawRows[0]?.trips || '0', 10),
+      netWeightToday: parseFloat(rawRows[0]?.net_weight || '0'),
+      processedBiomass: parseFloat(procRows[0]?.processed || '0'),
+      biocharProduced: parseFloat(biocharRows[0]?.biochar || '0'),
+      farmersDeployed: parseInt(biocharRows[0]?.farmers || '0', 10),
+      landCovered: parseFloat(biocharRows[0]?.land || '0'),
+    });
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin stats error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load stats' });
+    }
+  }
+});
+
+app.get('/api/admin/chart-data', adminMiddleware, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(7, parseInt(String(req.query.days || '14'), 10)));
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const startStr = startDate.toISOString().split('T')[0];
+    const dates: { date: string }[] = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(startDate);
+      d.setDate(d.getDate() + i);
+      dates.push({ date: d.toISOString().split('T')[0] });
+    }
+    const { rows: rawRows } = await pool.query(
+      `SELECT procurement_date::text as date, COUNT(*)::int as trips, COALESCE(SUM(net_weight), 0)::float as net_weight
+       FROM raw_biomass_procurement WHERE procurement_date >= $1 GROUP BY procurement_date`,
+      [startStr]
+    );
+    const { rows: procRows } = await pool.query(
+      `SELECT procurement_date::text as date, COALESCE(SUM(net_weight), 0)::float as processed
+       FROM processed_biomass_procurement WHERE procurement_date >= $1 GROUP BY procurement_date`,
+      [startStr]
+    );
+    const { rows: biocharRows } = await pool.query(
+      `SELECT created_at::date::text as date, COUNT(*)::int as farmers,
+        COALESCE(SUM(biochar_weight), 0)::float as biochar, COALESCE(SUM(land_area), 0)::float as land
+       FROM biochar_deployment WHERE created_at::date >= $1::date GROUP BY created_at::date`,
+      [startStr]
+    );
+    const rawByDate = Object.fromEntries(rawRows.map((r: any) => [r.date, { trips: r.trips, net_weight: r.net_weight }]));
+    const procByDate = Object.fromEntries(procRows.map((r: any) => [r.date, r.processed]));
+    const biocharByDate = Object.fromEntries(biocharRows.map((r: any) => [r.date, { farmers: r.farmers, biochar: r.biochar, land: r.land }]));
+    const chartData = dates.map(({ date }) => {
+      const raw = rawByDate[date] || { trips: 0, net_weight: 0 };
+      const bio = biocharByDate[date] || { farmers: 0, biochar: 0, land: 0 };
+      return {
+        date,
+        label: new Date(date + 'T12:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        trips: raw.trips,
+        netWeight: Math.round(raw.net_weight * 100) / 100,
+        processedBiomass: Math.round((procByDate[date] || 0) * 100) / 100,
+        biocharProduced: Math.round(bio.biochar * 100) / 100,
+        farmersDeployed: bio.farmers,
+        landCovered: Math.round(bio.land * 100) / 100,
+      };
+    });
+    res.json(chartData);
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin chart-data error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load chart data' });
+    }
+  }
+});
+
+app.get('/api/admin/donut-data', adminMiddleware, async (_, res) => {
+  try {
+    // Limit to last 365 days so queries use idx_raw_biomass_date (avoids full table scan on large table)
+    const fromStr = new Date();
+    fromStr.setDate(fromStr.getDate() - 365);
+    const fromDate = fromStr.toISOString().split('T')[0];
+    const { rows: tripsRows } = await pool.query(
+      `SELECT COALESCE(sp.name, r.stock_point_id, 'Unknown') as name, COUNT(*)::int as value
+       FROM raw_biomass_procurement r
+       LEFT JOIN stock_points sp ON r.stock_point_id = sp.id
+       WHERE r.procurement_date >= $1
+       GROUP BY r.stock_point_id, sp.name`,
+      [fromDate]
+    );
+    const { rows: sourceRows } = await pool.query(
+      `SELECT COALESCE(
+         CASE source
+           WHEN 'own' THEN 'Own'
+           WHEN 'vendor' THEN 'Vendor'
+           WHEN 'cotton_stalks' THEN 'Cotton Stalks'
+           WHEN 'chickpea_hulls' THEN 'Chickpea Hulls'
+           WHEN 'chilli_stalks' THEN 'Chilli Stalks'
+           ELSE source
+         END, 'Other') as name,
+         COALESCE(SUM(net_weight), 0)::float as value
+       FROM raw_biomass_procurement WHERE procurement_date >= $1 GROUP BY source`,
+      [fromDate]
+    );
+    const { rows: roleRows } = await pool.query(
+      `SELECT COALESCE(
+         CASE role
+           WHEN 'admin' THEN 'Admin'
+           WHEN 'supervisor_stockpoint' THEN 'Stock Point Supervisor'
+           WHEN 'supervisor_plant' THEN 'Plant Supervisor'
+           WHEN 'incharge' THEN 'Incharge'
+           ELSE role
+         END, 'Other') as name,
+         COUNT(*)::int as value
+       FROM users GROUP BY role`
+    );
+    res.json({
+      tripsByStockPoint: tripsRows,
+      netWeightBySource: sourceRows.map((r: any) => ({ name: r.name, value: Math.round(r.value * 100) / 100 })),
+      usersByRole: roleRows,
+    });
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin donut-data error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load donut data' });
+    }
+  }
+});
+
+app.get('/api/admin/user-activity-today', adminMiddleware, async (_, res) => {
+  const { rows } = await pool.query(
+    `SELECT COALESCE(u.name, r.created_by_email, 'Unknown') as user_name,
+       COALESCE(u.email, r.created_by_email, '') as email,
+       r.created_by as user_id,
+       COUNT(*)::int as trips,
+       COALESCE(SUM(r.net_weight), 0)::float as net_weight
+     FROM raw_biomass_procurement r
+     LEFT JOIN users u ON u.id::text = r.created_by
+     WHERE r.procurement_date::date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date
+     GROUP BY r.created_by, r.created_by_email, u.name, u.email
+     ORDER BY trips DESC, net_weight DESC`
+  );
+  res.json(rows.map((r: any) => ({
+    userId: r.user_id,
+    userName: r.user_name,
+    email: r.email,
+    trips: r.trips,
+    netWeight: Math.round(r.net_weight * 100) / 100,
+  })));
+});
+
+app.get('/api/admin/daily-activity', adminMiddleware, async (req, res) => {
+  try {
+    const dateStr = String(req.query.date || new Date().toISOString().split('T')[0]);
+    const userId = req.query.userId ? String(req.query.userId) : null;
+    const { rows } = await pool.query(
+      `SELECT COALESCE(u.name, r.created_by_email, 'Unknown') as user_name,
+         COALESCE(u.email, r.created_by_email, '') as email,
+         r.created_by as user_id,
+         COUNT(*)::int as trips,
+         COALESCE(SUM(r.net_weight), 0)::float as net_weight
+       FROM raw_biomass_procurement r
+       LEFT JOIN users u ON u.id::text = r.created_by
+       WHERE r.procurement_date = $1
+       ${userId ? 'AND (r.created_by = $2 OR u.id::text = $2)' : ''}
+       GROUP BY r.created_by, r.created_by_email, u.name, u.email
+       ORDER BY trips DESC, net_weight DESC`,
+      userId ? [dateStr, userId] : [dateStr]
+    );
+    res.json(rows.map((r: any) => ({
+      userId: r.user_id,
+      userName: r.user_name,
+      email: r.email,
+      trips: r.trips,
+      netWeight: Math.round(r.net_weight * 100) / 100,
+    })));
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin daily-activity error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load daily activity' });
+    }
+  }
+});
+
+// Individual trip records for one user on one date (for Daily Activity row click)
+app.get('/api/admin/daily-activity/records', adminMiddleware, async (req, res) => {
+  try {
+    const dateStr = String(req.query.date || new Date().toISOString().split('T')[0]);
+    const userId = req.query.userId ? String(req.query.userId) : null;
+    if (!userId) {
+      res.status(400).json({ error: 'userId is required' });
+      return;
+    }
+    const { rows } = await pool.query(
+      `SELECT r.* FROM raw_biomass_procurement r
+       LEFT JOIN users u ON u.id::text = r.created_by
+       WHERE r.procurement_date = $1 AND (r.created_by = $2 OR u.id::text = $2)
+       ORDER BY r.created_at ASC, r.id ASC`,
+      [dateStr, userId]
+    );
+    res.json(rows.map(mapProcurement));
+  } catch (e: any) {
+    if (!res.headersSent) {
+      console.error('Admin daily-activity/records error:', e?.message || e);
+      res.status(500).json({ error: e?.message || 'Failed to load trip records' });
+    }
+  }
+});
 
 // ============ STOCK POINTS ============
 app.get('/api/stock-points', authMiddleware, async (_, res) => {
@@ -462,6 +846,10 @@ app.get('/api/raw-biomass-procurement', authMiddleware, async (req, res) => {
       params.push(toDate);
     }
     q += ` ORDER BY procurement_date DESC`;
+
+    // Cap result size to avoid "Ran out of memory retrieving query results" (SQL 53200)
+    const requestedLimit = Math.min(10000, Math.max(1, parseInt(String(req.query.limit || '5000'), 10) || 5000));
+    q += ` LIMIT ${requestedLimit}`;
 
     const { rows } = await pool.query(q, params);
     res.json(rows.map(mapProcurement));
@@ -884,9 +1272,9 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 // Start server, verify DB connection, and run migrations automatically
 app.listen(PORT, async () => {
   console.log(`🚀 Biochar API server running on port ${PORT}`);
-  const hasDb = !!process.env.DATABASE_URL || !!process.env.PG_CONNECTION_STRING;
+  const hasDb = !!process.env.DATABASE_PUBLIC_URL || !!process.env.DATABASE_URL || !!process.env.PG_CONNECTION_STRING;
   if (!hasDb) {
-    console.error('❌ DATABASE_URL not set. Signup and all DB features will fail.');
+    console.error('❌ DATABASE_URL or DATABASE_PUBLIC_URL not set. Signup and all DB features will fail.');
   } else {
     try {
       await pool.query('SELECT 1');

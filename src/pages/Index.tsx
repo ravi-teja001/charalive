@@ -14,8 +14,14 @@ import {
 import { UserRole } from '@/types/biochar';
 import { Leaf } from 'lucide-react';
 import { swal } from '@/lib/swal';
+import { PublicHeader } from '@/components/layout/PublicHeader';
 
 const roleOptions: { value: UserRole; label: string; description: string }[] = [
+  {
+    value: 'admin',
+    label: 'Admin',
+    description: 'Full system access',
+  },
   {
     value: 'supervisor_stockpoint',
     label: 'Stock Point Supervisor',
@@ -134,7 +140,9 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex flex-col">
+      <PublicHeader />
+    <div className="flex-1 min-h-0 flex">
       {/* Left side - Hero */}
       <div className="hidden lg:flex lg:w-1/2 gradient-hero relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRoLTJ2LTRoMnY0em0wLTZoLTJ2LTRoMnY0em0tNiA2aC0ydi00aDJ2NHptMC02aC0ydi00aDJ2NHoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-30" />
@@ -276,6 +284,7 @@ export default function Index() {
           </p>
         </div>
       </div>
+    </div>
     </div>
   );
 }

@@ -21,7 +21,8 @@ import {
 } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { getDashboardStats, getRawBiomassProcurements } from '@/services/api';
-import { Truck, Weight, Receipt, CreditCard, Factory, Users, Leaf, MapPin, Download, Image as ImageIcon, Eye, Camera } from 'lucide-react';
+import { Truck, Weight, Receipt, CreditCard, Factory, Users, Leaf, MapPin, Download, Image as ImageIcon, Eye, Camera, Shield } from 'lucide-react';
+import { AdminPanelContent } from '@/components/admin/AdminPanelContent';
 import { format, formatDistanceToNow } from 'date-fns';
 import { exportToExcel } from '@/utils/excelExport';
 import { swal } from '@/lib/swal';
@@ -577,12 +578,18 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <PageHeader
-        title={`${getWelcomeMessage()}, ${user?.name}`}
-        description="Here's an overview of your operations"
-      />
-
-      {user?.role === 'supervisor_stockpoint' && renderStockpointStats()}
+      {user?.role === 'admin' ? (
+        <>
+          <PageHeader title="Admin Panel" />
+          <AdminPanelContent />
+        </>
+      ) : (
+        <>
+          <PageHeader
+            title={`${getWelcomeMessage()}, ${user?.name}`}
+            description="Here's an overview of your operations"
+          />
+          {user?.role === 'supervisor_stockpoint' && renderStockpointStats()}
       {user?.role === 'incharge' && renderInchargeStats()}
       {user?.role === 'supervisor_plant' && renderPlantStats()}
 
@@ -988,6 +995,8 @@ export default function Dashboard() {
           )}
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </DashboardLayout>
   );
 }

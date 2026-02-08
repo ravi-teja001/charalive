@@ -536,7 +536,7 @@ export default function Login() {
                 <SelectContent>
                   {availableRoles.map((r) => (
                     <SelectItem key={r} value={r}>
-                      {r === 'supervisor_stockpoint' ? 'Stock Point Supervisor' : r === 'incharge' ? 'Incharge' : r === 'supervisor_plant' ? 'Plant Supervisor' : r}
+                      {r === 'admin' ? 'Admin' : r === 'supervisor_stockpoint' ? 'Stock Point Supervisor' : r === 'incharge' ? 'Incharge' : r === 'supervisor_plant' ? 'Plant Supervisor' : r}
                     </SelectItem>
                   ))}
                 </SelectContent>

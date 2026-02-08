@@ -1272,10 +1272,13 @@ export async function getRawBiomassProcurements(
   try {
     console.log('🔍 Debug: Querying procurement records for user:', userId);
     
+    // Limit result size to avoid "Ran out of memory retrieving query results" (SQL 53200)
+    const maxRows = 5000;
     let query = supabase
       .from('raw_biomass_procurement')
       .select('*')
-      .order('procurement_date', { ascending: false });
+      .order('procurement_date', { ascending: false })
+      .limit(maxRows);
 
     // Filter by user - only show records for the current user
     if (userId) {

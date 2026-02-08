@@ -282,6 +282,7 @@ export default function Signup() {
                     <SelectValue placeholder="Select your role" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="supervisor_stockpoint">Stock Point Supervisor</SelectItem>
                     <SelectItem value="incharge">Incharge</SelectItem>
                     <SelectItem value="supervisor_plant">Plant Supervisor</SelectItem>

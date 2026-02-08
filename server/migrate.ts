@@ -29,6 +29,7 @@ const MIGRATIONS = [
   { file: 'railway-schema.sql', name: 'Main schema' },
   { file: 'ADD_USER_ROLES.sql', name: 'User roles' },
   { file: 'ADD_VEHICLE_TYPES.sql', name: 'Vehicle types' },
+  { file: 'ADD_ADMIN_ROLE.sql', name: 'Admin role' },
 ];
 
 export async function runMigrationsAutomatically(pool: Pool): Promise<void> {

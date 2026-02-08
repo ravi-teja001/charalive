@@ -291,9 +291,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       console.log('🚪 Starting logout...');
       if (useRailway) {
-        setApiToken(null);
         localStorage.removeItem(RAILWAY_USER_KEY);
         setUser(null);
+        // Defer token clear so protected route components unmount first.
+        // Avoids 401 from admin API calls that would fire during the transition.
+        setTimeout(() => {
+          setApiToken(null);
+        }, 100);
         return;
       }
       // Check if using placeholder credentials (development mode)

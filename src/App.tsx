@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -16,6 +17,9 @@ import BiocharDeployment from "./pages/BiocharDeployment";
 import NotFound from "./pages/NotFound";
 import Signup from "./pages/Signup";
 import AddVendor from "./pages/AddVendor";
+import Admin from "./pages/Admin";
+import AdminUsers from "./pages/AdminUsers";
+import DailyActivityByUser from "./pages/DailyActivityByUser";
 
 const queryClient = new QueryClient();
 
@@ -82,6 +86,9 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/raw-biomass" element={<RawBiomassProcurement />} />
       <Route path="/add-vendor" element={<AddVendor />} />
+      <Route path="/admin" element={<Admin />} />
+      <Route path="/admin/users" element={<AdminUsers />} />
+      <Route path="/daily-activity" element={<DailyActivityByUser />} />
       <Route path="/expenses" element={<Expenses />} />
       <Route path="/payments" element={<PaymentTracking />} />
       <Route path="/processed-biomass" element={<ProcessedBiomassProcurement />} />
@@ -105,7 +112,9 @@ const App = () => {
                 v7_relativeSplatPath: true,
               }}
             >
-              <AppRoutes />
+              <ThemeProvider>
+                <AppRoutes />
+              </ThemeProvider>
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>

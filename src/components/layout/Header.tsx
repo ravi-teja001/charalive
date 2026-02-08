@@ -1,6 +1,7 @@
-import { User, LogOut, Menu, X } from 'lucide-react';
+import { User, LogOut, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/shared/ThemeToggle';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -11,8 +12,8 @@ export function Header({ onToggleSidebar }: HeaderProps) {
 
   const getRoleLabel = () => {
     switch (user?.role) {
-      case 'supervisor_stockpoint':
-        return 'Stock Point Supervisor';
+      case 'admin':
+        return 'Admin';
       case 'incharge':
         return 'Incharge';
       case 'supervisor_plant':
@@ -23,7 +24,7 @@ export function Header({ onToggleSidebar }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-white border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 shadow-sm">
+    <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4 lg:px-6 sticky top-0 z-30 shadow-sm">
       {/* Left side - Collapse/Expand button */}
       <div className="flex items-center gap-4">
         <Button
@@ -37,8 +38,9 @@ export function Header({ onToggleSidebar }: HeaderProps) {
         </Button>
       </div>
 
-      {/* Right side - User Info and Logout */}
-      <div className="flex items-center gap-4">
+      {/* Right side - Theme Toggle (hidden for Stock Point Supervisor), User Info and Logout */}
+      <div className="flex items-center gap-2 sm:gap-4">
+        {user?.role !== 'supervisor_stockpoint' && <ThemeToggle size="icon" variant="ghost" />}
         {/* User Info */}
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">

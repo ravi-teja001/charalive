@@ -14,6 +14,7 @@ import {
   X,
   UserPlus,
   LogOut,
+  ClipboardList,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -33,6 +34,12 @@ const supervisorPlantLinks = [
   { href: '/dashboard', label: 'Dashboard', icon: Home },
   { href: '/processed-biomass', label: 'Processed Biomass', icon: Factory },
   { href: '/biochar-deployment', label: 'Biochar Deployment', icon: Users },
+];
+
+const adminLinks = [
+  { href: '/dashboard', label: 'Dashboard', icon: Home },
+  { href: '/daily-activity', label: 'Daily Activity by User', icon: ClipboardList },
+  { href: '/admin/users', label: 'User Summary', icon: Users },
 ];
 
 interface SidebarProps {
@@ -60,6 +67,8 @@ export function Sidebar({ isOpen: externalIsOpen, onClose, onMenuClick, collapse
 
   const getLinks = () => {
     switch (user?.role) {
+      case 'admin':
+        return adminLinks;
       case 'supervisor_stockpoint':
         return supervisorStockpointLinks;
       case 'incharge':
@@ -73,6 +82,8 @@ export function Sidebar({ isOpen: externalIsOpen, onClose, onMenuClick, collapse
 
   const getRoleLabel = () => {
     switch (user?.role) {
+      case 'admin':
+        return 'Admin';
       case 'supervisor_stockpoint':
         return 'Stock Point Supervisor';
       case 'incharge':
