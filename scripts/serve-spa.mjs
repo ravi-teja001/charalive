@@ -27,9 +27,21 @@ const mimeTypes = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(distPath, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
-  const ext = path.extname(filePath);
-  const contentType = mimeTypes[ext] || 'application/octet-stream';
+  const urlPath = (req.url || '/').split('?')[0];
+  const safePath = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
+  const filePath = path.join(distPath, path.normalize(safePath));
+  const rel = path.relative(distPath, filePath);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    return fs.readFile(path.join(distPath, 'index.html'), (err, content) => {
+      if (err) {
+        res.writeHead(500);
+        res.end('Error');
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(content);
+    });
+  }
 
   fs.access(filePath, fs.constants.F_OK, (err) => {
     let target = filePath;

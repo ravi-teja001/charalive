@@ -87,6 +87,7 @@ const AppRoutes = () => {
       <Route path="/raw-biomass" element={<RawBiomassProcurement />} />
       <Route path="/add-vendor" element={<AddVendor />} />
       <Route path="/admin" element={<Admin />} />
+      <Route path="/admin/" element={<Admin />} />
       <Route path="/admin/users" element={<AdminUsers />} />
       <Route path="/daily-activity" element={<DailyActivityByUser />} />
       <Route path="/expenses" element={<Expenses />} />
